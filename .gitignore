@@ -11,6 +11,10 @@ dist/
 .env
 .env.*
 data/
+models/
+downloads/
+predict_then_select_release/
+results/reference/
 *.pt
 *.pth
 *.npy

@@ -18,9 +18,13 @@ The figure shows mean selection utility across three paired runs. Error bars are
 
 The main cohort has 9,437 eligible cells from BSCCMNIST. External evaluation uses all 27,074 eligible cells from a second acquisition batch, with each slide treated as a separate candidate pool. The within-slide follow-up reuses an earlier test set and is exploratory. Field-bootstrap intervals condition on the fitted models and validation choices; they do not establish donor-level generalization.
 
-[Methods](docs/method.md) · [Reproduction](docs/reproduce.md) · [Result tables](results/README.md) · [References](docs/references.bib)
+[Methods](docs/method.md) · [Downloads](docs/downloads.md) · [Reproduction](docs/reproduce.md) · [Result tables](results/README.md) · [References](docs/references.bib)
 
 ## Quick start
+
+Open the [pretrained-model notebook in Colab](https://colab.research.google.com/github/yyttim/predict-then-select/blob/main/notebooks/pretrained_models.ipynb) to evaluate the released checkpoints. It downloads the required files, checks their hashes, and compares prediction error with cell-selection utility across all three seeds.
+
+The complete prepared cohorts, selected weights, and per-cell results are on [Google Drive](https://drive.google.com/drive/folders/1E0WlKM2xjE1Sibodr_qwCAW4Hl-ZGwfm). See [Downloads](docs/downloads.md) for contents and checksums. A copy of the notebook is also in that folder.
 
 Use Python 3.11 or later. Install a PyTorch build for your hardware, then install the package and test dependencies:
 
@@ -32,9 +36,9 @@ python -m pip install -e ".[data,dev]" -c requirements-reproduce.txt
 python -m pytest -q
 ```
 
-For a short example, open the [notebook](notebooks/cell_selection_extended.ipynb) in [Colab](https://colab.research.google.com/github/yyttim/predict-then-select/blob/main/notebooks/cell_selection_extended.ipynb) and upload [colab_extended_demo.zip](results/colab_extended_demo.zip). It trains the full model on 1,201 cells from complete training fields. The five-epoch demonstration is separate from the reported experiments.
+For a short training example, open the [demo in Colab](https://colab.research.google.com/github/yyttim/predict-then-select/blob/main/notebooks/cell_selection_extended.ipynb) and upload [colab_extended_demo.zip](results/colab_extended_demo.zip). It trains the full model on 1,201 cells from complete training fields. The five-epoch demonstration is separate from the reported experiments.
 
-The [reproduction guide](docs/reproduce.md) covers the full dataset, training grid, model selection, and analysis. Data and checkpoints are generated locally and are not included in this repository.
+The [reproduction guide](docs/reproduce.md) covers data preparation, the full training grid, model selection, and analysis.
 
 ## Structure
 
@@ -43,7 +47,7 @@ src/cellselect/   Models, losses, training, and evaluation
 scripts/         Data preparation and experiment commands
 configs/         Experiment settings
 tests/           Numerical and pipeline tests
-notebooks/       Small real-data example
+notebooks/       Pretrained evaluation and training demo
 results/         Published tables and figures
 vendor/          Reference model and upstream license
 ```

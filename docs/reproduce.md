@@ -9,9 +9,11 @@ python -m pytest -q
 
 The reported experiments used PyTorch 2.7, CUDA 12.8, and an RTX 5090. Numerical results can differ across library versions and hardware. To use a CPU, create separate training configurations with `device` set to `cpu` and add `--device cpu` to the evaluation and readout commands. The full grid is intended for GPU execution.
 
-The repository includes published [tables](../results/tables/) and [figures](../results/figures/), but not raw data, trained checkpoints, or per-cell predictions. The commands below generate new runs and protocols. They do not require the original machine's paths or historical run hashes, and should not be combined with a partial copy of older run directories.
+The repository includes published [tables](../results/tables/) and [figures](../results/figures/). Prepared data, selected checkpoints, and per-cell predictions are available from [Downloads](downloads.md). Use the [pretrained-model notebook](../notebooks/pretrained_models.ipynb) to evaluate those checkpoints. The commands below generate new runs and protocols; keep their output directories separate from the downloaded reference results.
 
 ## Prepare the data
+
+To use the exact prepared cohorts, download both data archives from [Downloads](downloads.md) and extract them at the repository root. This supplies every cell used in the study, with the original split and metadata. To rebuild these cohorts from the source release, follow the steps below.
 
 Download the two full **BSCCMNIST** chunks from [Dryad](https://doi.org/10.5061/dryad.sxksn038s), version May 6, 2025. They are `BSCCMNIST.tar.gz_chunk00000.bin` and `BSCCMNIST.tar.gz_chunk00001.bin`, totaling approximately 6.23 GB compressed. On the website, select both files and download the selected-files ZIP. Save it as `./data/bsccmnist.zip`.
 
