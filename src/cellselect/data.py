@@ -1,27 +1,22 @@
-"""BSCCMNIST cohort construction, grouped splitting, and prepared-array access.
-
-The four inputs are the LED-array intensity channels DPC_Left/Right/Top/Bottom,
-not the separate reconstructed quantitative-phase ``dpc`` image.
-"""
+"""Prepared single-antibody CD16 data and training-only normalization."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 CHANNELS = ("DPC_Left", "DPC_Right", "DPC_Top", "DPC_Bottom")
-CLASS_NAMES = ("Lymphocyte", "Granulocyte", "Monocyte")
-MARKER_COLUMNS = {"CD16": "CD16_full_model_unmixed", "CD45": "CD45_full_model_unmixed"}
-# Class mapping from the authors' get_cell_type_classification_data API.
-GATE_TO_CLASS = {0: 0, 1: 1, 2: 1, 3: 1, 7: 2, 8: 2, 9: 2}
+TARGET_COLUMN = "CD16_single_antibody_model_unmixed"
+SPLIT_SEED = 20261030
+QUARTER_SEED = 20261031
 
 
-def sha256_file(path: Path) -> str:
+def sha256_file(path):
     digest = hashlib.sha256()
     with Path(path).open("rb") as stream:
         for block in iter(lambda: stream.read(8 * 1024 * 1024), b""):
@@ -29,140 +24,114 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _gate_boolean(series: pd.Series) -> np.ndarray:
-    """Treat missing gates as unselected, never as Python's bool(nan)."""
-    if pd.api.types.is_bool_dtype(series):
-        return series.fillna(False).to_numpy(dtype=bool)
-    values = series.fillna(False).astype(str).str.strip().str.lower()
-    allowed = {"true", "false", "1", "0", "1.0", "0.0"}
-    if not set(values.unique()).issubset(allowed):
-        raise ValueError(f"Unexpected gate values in {series.name}")
-    return values.isin(["true", "1", "1.0"]).to_numpy()
-
-
-def make_cohort(index: pd.DataFrame, markers: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-    """Keep all uniquely three-class-labelled batch-0/all cells with finite CD16.
-
-    Missing optional CD45 is retained rather than reducing the CD16 cohort. Raw
-    marker estimates stay in the authors' original arbitrary abundance units.
-    """
+def eligible_metadata(index, markers, batch=0):
+    """Retain every single-CD16 cell with a finite target in the requested batch."""
+    if batch not in {0, 1}:
+        raise ValueError("Only the two released single-CD16 batches are supported")
     if index.index.name != "global_index" or markers.index.name != "global_index":
-        raise ValueError("Both metadata frames must use global_index as their index")
+        raise ValueError("Source tables must be indexed by global_index")
     if not index.index.is_unique or not markers.index.is_unique:
-        raise ValueError("Duplicate global_index in source metadata")
-    gate_names = [name for name in markers.columns if "selection_gated" in name]
-    if len(gate_names) != 10:
-        raise ValueError(
-            f"Expected the official 10 ordered gates, found {len(gate_names)}; inspect data/API before proceeding"
-        )
-    missing = [name for name in MARKER_COLUMNS.values() if name not in markers]
-    if missing:
-        raise ValueError(f"Missing source marker columns: {missing}")
-    class_flags = np.zeros((len(markers), 3), dtype=bool)
-    for gate, class_id in GATE_TO_CLASS.items():
-        class_flags[:, class_id] |= _gate_boolean(markers[gate_names[gate]])
-    number_of_classes = class_flags.sum(axis=1)
-    labels = pd.Series(
-        np.where(number_of_classes == 1, class_flags.argmax(axis=1), -1), index=markers.index
+        raise ValueError("Duplicate global_index in source tables")
+    names = [
+        "batch",
+        "antibodies",
+        "slide_replicate",
+        "imaging_date",
+        "data_path",
+        "fov_center_x",
+        "fov_center_y",
+        "fov_center_z",
+        "position_in_fov_x_pix",
+        "position_in_fov_y_pix",
+    ]
+    required = {"batch", "antibodies", "data_path", "fov_center_x", "fov_center_y"}
+    if not required.issubset(index.columns) or TARGET_COLUMN not in markers:
+        raise ValueError("Required source metadata or single-antibody CD16 target is missing")
+    selected = index.loc[
+        (index["batch"] == batch) & (index["antibodies"] == "CD16"),
+        [name for name in names if name in index],
+    ].copy()
+    selected["target"] = pd.to_numeric(
+        markers[TARGET_COLUMN].reindex(selected.index), errors="coerce"
     )
-    candidates = index.loc[(index["batch"] == 0) & (index["antibodies"] == "all")].copy()
-    candidates["class_id"] = labels.reindex(candidates.index).fillna(-1).astype(int)
-    for name, column in MARKER_COLUMNS.items():
-        candidates[name] = pd.to_numeric(markers[column].reindex(candidates.index), errors="coerce")
-    classified = candidates["class_id"] >= 0
-    finite = np.isfinite(candidates["CD16"])
-    cohort = candidates.loc[classified & finite].sort_index().copy()
-    if (cohort["CD16"] < 0).any():
-        raise ValueError("Negative CD16 abundance in the official nonnegative unmixed target")
-    if cohort.empty:
-        raise ValueError("No eligible cells")
-    # data_path identifies antibody condition, batch and physical slide.
-    # Imaging date is not added: re-imaging a physical slide must not split it.
-    cohort["slide_id"] = cohort["data_path"].astype(str).str.strip("/")
-    required = ["fov_center_x", "fov_center_y"]
-    if not np.isfinite(cohort[required].to_numpy(dtype=np.float64)).all():
-        raise ValueError("Missing field-of-view coordinates; cannot create leakage-safe split")
-    # Repeated focal planes at the same XY remain in one field, hence z is omitted.
-    xy = cohort[required].apply(lambda s: s.map(lambda v: format(float(v), ".12g")))
-    cohort["fov_id"] = cohort["slide_id"] + "|x=" + xy["fov_center_x"] + "|y=" + xy["fov_center_y"]
-    qc = {
+    valid = np.isfinite(selected["target"])
+    metadata = selected.loc[valid].sort_index().copy()
+    if metadata.empty or (metadata["target"] < 0).any():
+        raise ValueError("Empty cohort or negative values in the nonnegative released target")
+    if (
+        metadata["data_path"].isna().any()
+        or not np.isfinite(metadata[["fov_center_x", "fov_center_y"]].to_numpy(float)).all()
+    ):
+        raise ValueError("Missing slide identity or nonfinite FOV coordinates")
+    metadata["slide_id"] = metadata["data_path"].astype(str).str.strip("/")
+    xy = metadata[["fov_center_x", "fov_center_y"]].apply(
+        lambda values: values.map(lambda x: format(float(x), ".12g"))
+    )
+    # Keep repeat focal planes at the same physical XY in the same group.
+    metadata["fov_id"] = (
+        metadata["slide_id"] + "|x=" + xy["fov_center_x"] + "|y=" + xy["fov_center_y"]
+    )
+    audit = {
         "source_cells": len(index),
-        "batch0_all_cells": len(candidates),
-        "unique_three_class_cells": int(classified.sum()),
-        "excluded_missing_or_nonfinite_CD16": int((classified & ~finite).sum()),
-        "ambiguous_across_class_gates_global": int((number_of_classes > 1).sum()),
-        "eligible_cells": len(cohort),
-        "optional_CD45_missing": int((~np.isfinite(cohort["CD45"])).sum()),
-        "class_counts": {CLASS_NAMES[i]: int((cohort["class_id"] == i).sum()) for i in range(3)},
-        "slides": int(cohort["slide_id"].nunique()),
-        "fovs": int(cohort["fov_id"].nunique()),
-        "gate_columns_in_source_order": gate_names,
-        "gate_mapping": GATE_TO_CLASS,
+        "batch": batch,
+        "single_cd16_cells": len(selected),
+        "finite_target_cells": len(metadata),
+        "excluded_nonfinite_target": int((~valid).sum()),
+        "negative_targets": 0,
+        "tail_clipping_or_trimming": False,
     }
-    return cohort, qc
+    return metadata, audit
 
 
-def assign_group_split(
-    metadata: pd.DataFrame,
-    seed: int = 20261021,
-    fractions=(0.70, 0.15, 0.15),
-    group_column="fov_id",
-) -> pd.Series:
-    """Shuffle unique groups once, without using outcomes or class composition."""
-    if len(fractions) != 3 or not np.isclose(sum(fractions), 1) or min(fractions) <= 0:
-        raise ValueError("Three positive split fractions must sum to one")
-    groups = np.array(sorted(metadata[group_column].unique()), dtype=object)
+def assign_partitions(metadata):
+    """Assign fields independently of targets, then fix the nested quarter subset."""
+    if "batch" in metadata and not metadata["batch"].eq(0).all():
+        raise ValueError("Only batch 0 may enter the training/validation/test split")
+    metadata = metadata.copy()
+    groups = np.array(sorted(metadata["fov_id"].unique()), dtype=object)
     if len(groups) < 7:
-        raise ValueError("At least seven independent groups are needed for the requested split")
-    groups = np.random.default_rng(seed).permutation(groups)
-    n_train = int(np.floor(len(groups) * fractions[0]))
-    n_val = int(np.floor(len(groups) * fractions[1]))
-    if min(n_train, n_val, len(groups) - n_train - n_val) < 1:
-        raise ValueError("Empty split")
-    assignment = dict(
+        raise ValueError("At least seven fields are needed for the declared split")
+    order = np.random.default_rng(SPLIT_SEED).permutation(groups)
+    n_train, n_val = int(np.floor(0.70 * len(order))), int(np.floor(0.15 * len(order)))
+    mapping = dict(
         zip(
-            groups,
-            ["train"] * n_train + ["val"] * n_val + ["test"] * (len(groups) - n_train - n_val),
+            order, ["train"] * n_train + ["val"] * n_val + ["test"] * (len(order) - n_train - n_val)
         )
     )
-    return metadata[group_column].map(assignment).rename("split")
+    metadata["split"] = metadata["fov_id"].map(mapping)
+    train_fields = np.array(
+        sorted(metadata.loc[metadata["split"] == "train", "fov_id"].unique()), dtype=object
+    )
+    quarter_fields = np.random.default_rng(QUARTER_SEED).permutation(train_fields)[
+        : int(np.ceil(0.25 * len(train_fields)))
+    ]
+    metadata["train_quarter"] = (metadata["split"] == "train") & metadata["fov_id"].isin(
+        quarter_fields
+    )
+    return metadata
 
 
-def training_statistics(images: np.ndarray, metadata: pd.DataFrame, chunk_size=1024) -> dict:
-    """Compute channel pixel and target moments using training rows only."""
-    selected = np.flatnonzero(metadata["split"].to_numpy() == "train")
-    if not len(selected):
-        raise ValueError("No training rows")
-    sums = np.zeros(images.shape[1], np.float64)
-    sumsquares = np.zeros_like(sums)
-    count = 0
-    for start in range(0, len(selected), chunk_size):
-        block = np.asarray(images[selected[start : start + chunk_size]], dtype=np.float64)
-        if not np.isfinite(block).all():
-            raise ValueError("Non-finite input images")
-        sums += block.sum(axis=(0, 2, 3))
-        sumsquares += np.square(block).sum(axis=(0, 2, 3))
-        count += len(block) * block.shape[2] * block.shape[3]
-    mean = sums / count
-    std = np.sqrt(np.maximum(sumsquares / count - mean**2, 0))
-    if (std <= 0).any():
-        raise ValueError("Constant training image channel")
-    marker_stats = {}
-    for marker in MARKER_COLUMNS:
-        values = metadata.iloc[selected][marker].to_numpy(dtype=np.float64)
-        values = values[np.isfinite(values)]
-        if len(values) and values.std() > 0:
-            marker_stats[marker] = {
-                "mean": float(values.mean()),
-                "std": float(values.std()),
-                "n": len(values),
-            }
+def threshold_from_quarter(metadata):
+    reference = metadata.loc[metadata["train_quarter"]]
+    if reference.empty or not (reference["split"] == "train").all():
+        raise ValueError("Threshold reference must be a nonempty training subset")
+    values = reference["target"].to_numpy(dtype=np.float64)
+    if not np.isfinite(values).all():
+        raise ValueError("Nonfinite threshold-reference targets")
+    ids = (
+        reference.index.to_numpy(dtype=np.int64)
+        if metadata.index.name == "global_index"
+        else reference["global_index"].to_numpy(dtype=np.int64)
+    )
     return {
-        "scope": "full_training_split_only",
-        "ddof": 0,
-        "image_mean": mean.tolist(),
-        "image_std": std.tolist(),
-        "markers": marker_stats,
+        "value": float(np.quantile(values, 0.9, method="linear")),
+        "quantile": 0.9,
+        "operator": ">=",
+        "source": "quarter_training",
+        "method": "linear",
+        "reference_count": len(reference),
+        "reference_fields": int(reference["fov_id"].nunique()),
+        "reference_ids_sha256": hashlib.sha256(ids.tobytes()).hexdigest(),
     }
 
 
@@ -171,26 +140,102 @@ class PreparedData:
     images: np.ndarray
     metadata: pd.DataFrame
     manifest: dict
+    root: Path | None = None
+    manifest_sha256: str = ""
 
-    def rows(self, split: str) -> np.ndarray:
-        if split not in {"train", "val", "test"}:
-            raise ValueError(f"Unknown split {split}")
-        return np.flatnonzero(self.metadata["split"].to_numpy() == split)
+    @property
+    def directory(self):
+        return self.root
+
+    def rows(self, split, fraction=1.0):
+        if split not in {"train", "val", "test", "external"}:
+            raise ValueError(f"Unknown partition: {split}")
+        if fraction not in {0.25, 1.0} or (split != "train" and fraction != 1.0):
+            raise ValueError(
+                "Only training supports the quarter/full budgets; evaluation pools stay complete"
+            )
+        mask = self.metadata["split"].to_numpy() == split
+        if fraction == 0.25:
+            mask &= self.metadata["train_quarter"].to_numpy(dtype=bool)
+        return np.flatnonzero(mask)
 
 
-def load_prepared(path: str | Path, verify_hashes=False) -> PreparedData:
-    root = Path(path)
+def load_data(path, verify_hashes=True):
+    root = Path(path).resolve()
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-    metadata = pd.read_csv(root / "metadata.csv")
-    images = np.load(root / "images.npy", mmap_mode="r")
-    if images.shape != (len(metadata), 4, 28, 28):
-        raise ValueError("Image and metadata shapes do not match the four-channel prepared schema")
-    if not metadata["global_index"].is_unique:
-        raise ValueError("Duplicate cells in prepared dataset")
-    if (metadata.groupby("split_group")["split"].nunique() != 1).any():
-        raise ValueError("A split group crosses partitions")
+    if (
+        manifest.get("schema_version") != 2
+        or manifest.get("cohort", {}).get("target_column") != TARGET_COLUMN
+    ):
+        raise ValueError("Expected the single-antibody CD16 selection dataset")
     if verify_hashes:
-        for filename, expected in manifest["prepared_sha256"].items():
-            if sha256_file(root / filename) != expected:
-                raise ValueError(f"Prepared file checksum mismatch: {filename}")
-    return PreparedData(images, metadata, manifest)
+        for name in ("images.npy", "metadata.csv"):
+            if sha256_file(root / name) != manifest["prepared_sha256"][name]:
+                raise ValueError(f"Prepared data checksum mismatch: {name}")
+    metadata = pd.read_csv(root / "metadata.csv", float_precision="round_trip")
+    images = np.load(root / "images.npy", mmap_mode="r", allow_pickle=False)
+    if images.shape != (len(metadata), 4, 28, 28) or images.dtype != np.float32:
+        raise ValueError("Prepared image shape or dtype mismatch")
+    if not metadata["global_index"].is_unique or not np.isfinite(metadata["target"]).all():
+        raise ValueError("Invalid prepared IDs or targets")
+    if not pd.api.types.is_bool_dtype(metadata["train_quarter"]):
+        raise ValueError("train_quarter must contain booleans")
+    roles = set(metadata["split"].unique())
+    if not {"train", "val", "test"}.issubset(roles) or not roles.issubset(
+        {"train", "val", "test", "external"}
+    ):
+        raise ValueError("Require the main partitions and, optionally, an external pool")
+    if "batch" in metadata:
+        external = metadata["split"].eq("external")
+        if (
+            not metadata.loc[external, "batch"].eq(1).all()
+            or not metadata.loc[~external, "batch"].eq(0).all()
+        ):
+            raise ValueError(
+                "Batch 1 must remain external and batch 0 must remain in the main split"
+            )
+    if (metadata.groupby("fov_id")["split"].nunique() != 1).any():
+        raise ValueError("A field crosses partitions")
+    if (
+        metadata.loc[metadata["train_quarter"], "split"].ne("train").any()
+        or (metadata.groupby("fov_id")["train_quarter"].nunique() != 1).any()
+    ):
+        raise ValueError("Quarter membership must consist of complete training fields")
+    if threshold_from_quarter(metadata) != manifest["threshold"]:
+        raise ValueError("Threshold does not match the locked quarter-training reference")
+    return PreparedData(images, metadata, manifest, root, sha256_file(root / "manifest.json"))
+
+
+def normalization(data, indices):
+    """Population moments from the specified training rows, with no label clipping."""
+    indices = np.asarray(indices)
+    if indices.ndim != 1 or not len(indices) or not np.issubdtype(indices.dtype, np.integer):
+        raise ValueError("Training indices must be a nonempty integer vector")
+    if (
+        indices.min() < 0
+        or indices.max() >= len(data.metadata)
+        or len(np.unique(indices)) != len(indices)
+    ):
+        raise ValueError("Invalid or duplicated training indices")
+    metadata = data.metadata.iloc[indices]
+    if not metadata["split"].eq("train").all():
+        raise ValueError("Normalization may use training rows only")
+    sums, squares, count = np.zeros(4), np.zeros(4), 0
+    for start in range(0, len(indices), 512):
+        values = np.asarray(data.images[indices[start : start + 512]], dtype=np.float64)
+        if not np.isfinite(values).all():
+            raise ValueError("Nonfinite training images")
+        sums += values.sum(axis=(0, 2, 3))
+        squares += np.square(values).sum(axis=(0, 2, 3))
+        count += len(values) * values.shape[2] * values.shape[3]
+    mean = sums / count
+    std = np.sqrt(np.maximum(squares / count - mean**2, 0))
+    target = metadata["target"].to_numpy(dtype=np.float64)
+    if not np.isfinite(target).all() or target.std() <= 0 or (std <= 0).any():
+        raise ValueError("Training inputs and targets must have nonzero finite variance")
+    return {
+        "image_mean": mean.tolist(),
+        "image_std": std.tolist(),
+        "target_mean": float(target.mean()),
+        "target_std": float(target.std()),
+    }

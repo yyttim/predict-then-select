@@ -1,6 +1,0 @@
-comparison,difference_a_minus_b,paired_seed_sd,n_seeds,ci_low,ci_high,n_bootstrap,n_fields,method,bootstrap_seed
-ce_readout_minus_native_ce,139.34463131898903,26.331705591713558,3,89.56304327942027,188.51780690907339,2000,345,common paired FOV draws across fixed trained seeds; rerank every pool,20261021
-ce_readout_minus_mse_readout,-16.32575941783398,25.85483885649813,3,-42.06205499726709,6.068653098515846,2000,345,common paired FOV draws across fixed trained seeds; rerank every pool,20261021
-joint_readout_minus_mse_readout,-16.89157343294255,10.391759342443356,3,-31.621910167278912,1.1708838187381045,2000,345,common paired FOV draws across fixed trained seeds; rerank every pool,20261021
-mse_readout_minus_native_mse,12.024587065164118,10.794867114034853,3,-0.8182038879393891,24.336966277199767,2000,345,common paired FOV draws across fixed trained seeds; rerank every pool,20261021
-joint_readout_minus_native_joint,-1.7755695347327294,26.378287777969412,3,-15.706612508453407,11.071820880766165,2000,345,common paired FOV draws across fixed trained seeds; rerank every pool,20261021

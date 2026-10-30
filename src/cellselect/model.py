@@ -1,9 +1,10 @@
-"""Shared CNN--ViT encoder with independent cell-type and marker heads.
+"""Reference CNN--ViT encoder with independent marker-mean and binary heads.
 
 Adapted from Saqib Nazir and Ardhendu Behera's MIT-licensed
 Single-Cell-Phenotyping, commit 56a42e77bf6a7c5fcbbf8967dc209e2ee8f3d5df.
 See vendor/LICENSE and vendor/README.md. The reference encoder is preserved;
-cross-task gating is removed, and the regression output is one continuous marker.
+cross-task gating is removed. The two heads predict standardized marker mean
+and the logit of a fixed high-marker event.
 """
 
 from __future__ import annotations
@@ -221,73 +222,32 @@ class IndependentHead(nn.Module):
         return self.predictor(self.refinement(features))
 
 
-class CellSelectionModel(nn.Module):
-    """Trainable shared representation, with no cross-head feature exchange.
+class MarkerModel(nn.Module):
+    """Both outputs have shape [B]; inputs are normalized [B, 4, 28, 28]."""
 
-    Input is a floating tensor of shape [B, 4, 28, 28] by default. ``marker``
-    is [B], not [B, 1]; the caller must pass a matching one-dimensional target
-    to avoid unintentional MSE broadcasting. Its scale is determined entirely
-    by the training data transform. ``logits`` are unnormalized [B, C].
-    """
-
-    def __init__(
-        self,
-        num_classes: int = 3,
-        feature_dim: int = 256,
-        img_size: int = 28,
-        in_channels: int = 4,
-        dropout_rate: float = 0.4,
-    ) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        if num_classes < 2 or feature_dim < 1 or in_channels < 1:
-            raise ValueError("num_classes >= 2, feature_dim >= 1, and in_channels >= 1 required")
-        if img_size < 4 or img_size % 4:
-            raise ValueError("img_size must be a positive multiple of the ViT patch size 4")
-        if not 0 <= dropout_rate < 1:
-            raise ValueError("dropout_rate must be in [0, 1)")
-        self.num_classes = num_classes
-        self.feature_dim = feature_dim
-        self.encoder = SharedEncoder(feature_dim, img_size, in_channels)
-        self.classification_head = IndependentHead(feature_dim, num_classes, dropout_rate)
-        self.regression_head = IndependentHead(feature_dim, 1, dropout_rate)
+        self.feature_dim = 256
+        self.encoder = SharedEncoder(256, 28, 4)
+        self.mean_head = IndependentHead(256, 1, 0.4)
+        self.hit_head = IndependentHead(256, 1, 0.4)
 
-    def forward(self, x: Tensor, return_features: bool = False) -> dict[str, Tensor]:
+    def forward(self, x: Tensor) -> dict[str, Tensor]:
         features = self.encoder(x)
-        outputs = {
-            "logits": self.classification_head(features),
-            "marker": self.regression_head(features).squeeze(-1),
+        # All objectives execute both heads in this order, preserving paired RNG streams.
+        return {
+            "mean_z": self.mean_head(features).squeeze(-1),
+            "hit_logit": self.hit_head(features).squeeze(-1),
         }
-        if return_features:
-            outputs["features"] = features
-        return outputs
 
 
-def build_model(
-    num_classes: int = 3,
-    feature_dim: int = 256,
-    img_size: int = 28,
-    in_channels: int = 4,
-    dropout_rate: float = 0.4,
-    seed: int | None = None,
-) -> CellSelectionModel:
-    """Construct a model on CPU with optional reproducible initialization.
-
-    With an explicit seed, initialization preserves the caller's CPU RNG state.
-    Data-order and training/dropout seeds still need to be controlled separately.
-    """
-    kwargs = dict(
-        num_classes=num_classes,
-        feature_dim=feature_dim,
-        img_size=img_size,
-        in_channels=in_channels,
-        dropout_rate=dropout_rate,
-    )
+def build_model(seed: int | None = None) -> MarkerModel:
+    """Seed CPU initialization without changing the caller's RNG state."""
     if seed is None:
-        return CellSelectionModel(**kwargs)
+        return MarkerModel()
     with torch.random.fork_rng(devices=[]):
-        # Seed only CPU initialization, without touching accelerator RNG states.
         torch.random.default_generator.manual_seed(seed)
-        return CellSelectionModel(**kwargs)
+        return MarkerModel()
 
 
 def parameter_counts(model: nn.Module) -> dict[str, int]:

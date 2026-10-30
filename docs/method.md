@@ -1,53 +1,55 @@
 # Method
 
-We study when better marker prediction leads to better cell selection, and whether classification supervision or a decision-focused loss changes that relationship. The downstream task is to retain a fixed fraction of cells with high measured marker abundance, using only label-free images to rank them.
+We study which predictive objective supports cell selection when the desired outcome is either high average marker abundance or a high fraction of cells above a marker threshold. Both tasks use the same label-free images and paired CD16 measurements. The comparison asks whether continuous regression, threshold classification, or their combination uses limited training labels most effectively.
 
-## Data and model
+## Two selection objectives
 
-The study uses [BSCCMNIST](https://arxiv.org/abs/2402.06191), with four 28 Ã— 28 directional illumination channels: `DPC_Left`, `DPC_Right`, `DPC_Top`, and `DPC_Bottom`. The inputs are LED-array intensity images. The main cohort contains all 9,437 eligible, uniquely type-labeled cells from the batch-0, all-antibody condition on one physical slide. The field-level split gives 6,685 training, 1,394 validation, and 1,358 test cells.
+For a pool of $N$ cells, a score selects the largest $k=\lceil qN\rceil$ values. With measured abundance $y_i$ and a fixed threshold $\tau$, the two utilities are
 
-The three classes are lymphocytes, granulocytes, and monocytes. Their fluorescence gates use CD16 and CD45, so classification provides related coarse supervision, not independent clinical labels. Marker targets are the released processed abundance estimates in arbitrary units. Input normalization and marker standardization use the training partition only.
+$$U_{\mathrm{mean}}(S)=\frac{1}{k}\sum_{i\in S}y_i,\qquad U_{\mathrm{purity}}(S)=\frac{1}{k}\sum_{i\in S}\mathbf{1}\{y_i\ge\tau\}.$$
 
-The encoder follows the released [Nazirâ€“Behera CNNâ€“ViT model](https://doi.org/10.1007/978-3-032-31666-0_41). Independent classification and regression heads share its trainable 256-dimensional representation; cross-task gating is disabled. The adapted model has 1,289,713 parameters. Architecture details and attribution are in [vendor/README.md](../vendor/README.md).
+The primary budget is $q=0.10$. Mean abundance values every increase in marker level; purity counts whether a cell meets the threshold. Under the usual per-cell conditional prediction model, their optimal scores are $E[Y\mid X]$ and $P(Y\ge\tau\mid X)$, respectively. These can induce different rankings. Matching the predictive target to its intended use follows the decision-theoretic treatment of [Gneiting](https://doi.org/10.1198/jasa.2011.r10138); fixed-fraction selection also connects to [accuracy at the top](https://proceedings.neurips.cc/paper/2012/hash/7fe1f8abaad094e0b5cb1b01d712f708-Abstract.html).
 
-CD16 is studied with 25%, 50%, and 100% of the training fields. Subsets are nested within each replicate and identical across methods. CD45 provides a full-cohort second-marker comparison. Two batch-1 slides, containing 13,675 and 13,399 cells, are separate external candidate pools. Their cell types are unavailable and are never inferred for diagnostic stratification.
+## Cohort and label budgets
 
-## Objectives and selection
+We use the batch-0, single-antibody CD16 condition from [BSCCM](https://arxiv.org/abs/2402.06191), distributed as BSCCMNIST. The cohort contains all 9,397 cells with finite targets and valid four-channel $28\times28$ images from one physical slide, without cell-type gating. The inputs are the released directional LED-intensity channels `DPC_Left`, `DPC_Right`, `DPC_Top`, and `DPC_Bottom`.
 
-The predictive objective is
+The target is `CD16_single_antibody_model_unmixed`, stored as `target` in the prepared metadata. It is the released two-spectrum CD16/autofluorescence abundance estimate in arbitrary units. We apply no additional clipping or log transformation; the released estimates already include the authors' preprocessing.
 
-$$L_\lambda=L_{\mathrm{MSE}}+\lambda L_{\mathrm{CE}},\qquad \lambda\in\{0,0.1,0.3,1,3\}.$$
+Fields of view are assigned to training, validation, and test partitions in proportions 70/15/15 using seed `20261030`, yielding 6,616, 1,411, and 1,370 cells. Field identity includes its physical slide. A fixed quarter of the training fields is chosen with seed `20261031`; its 1,663 cells are shared across all methods and training seeds and included in full-data training.
 
-Pure regression is the principal baseline. A second baseline trains a classifier and scores each cell by its class probabilities weighted by training-set class marker means. This baseline also uses marker labels to estimate those means.
+The threshold $\tau$ is the 90th percentile of targets in that quarter-training subset, using linear quantile interpolation. It is fixed for every model, budget, and evaluation pool. Thus the smaller training budget does not use extra labels to define its target. "Marker-high" is an operational definition, not a clinical positivity threshold. Image normalization and regression-target standardization use only the training cells available at each budget.
 
-For a pool of size $N$, the policy selects $k=\lceil qN\rceil$ cells with the largest scores. Utility is their mean measured marker abundance. The primary fraction is $q=0.10$; the same frozen models are evaluated at 0.05 and 0.20 without retuning. The ranking rule uses predicted scores; measured markers and true types support held-out evaluation.
+## Models and training
 
-Two decision-focused objectives act on training minibatches as candidate pools. Let $F_k(v)$ be the sum of the $k$ largest entries of $v$, and $t_k(v)$ their binary selection indicator. With predictions $s$ and standardized targets $y$, [SPO+](https://doi.org/10.1287/mnsc.2020.3922) becomes
+The full CNN-ViT encoder is adapted from [Nazir and Behera](https://doi.org/10.1007/978-3-032-31666-0_41). Independent regression and binary-classification heads share the encoder, with no cross-task gate. The classification target is $z_i=\mathbf{1}\{y_i\ge\tau\}$.
 
-$$L_{\mathrm{SPO+}}=\frac{F_k(2s-y)-(2s-y)^\top t_k(y)}{k}.$$
+| Method | Training objective | Score used for selection |
+| --- | --- | --- |
+| MSE | Squared error on standardized CD16 | Regression output for either utility |
+| BCE | Unweighted binary cross-entropy | Binary logit for either utility |
+| Joint | $L_{\mathrm{MSE}}+\lambda L_{\mathrm{BCE}}$ | Regression output for mean abundance; binary logit for purity |
 
-The [central perturbation-gradient loss](https://doi.org/10.52202/079017-2514) approximates negative selection utility:
+Joint weights are $\lambda\in\{0.3,1,3\}$. Each objective is averaged over the same minibatch. There is no class weighting or class-balanced resampling. The grid has 30 runs: five objective settings, two training-field budgets, and seeds 16, 26, and 36. Methods are paired by initialization and data order within each budget.
 
-$$L_{\mathrm{PG},h}=-\frac{F_k(s+hy)-F_k(s-hy)}{2hk},\qquad h\in\{0.1,1\}.$$
+Let $B=\lceil N_{\mathrm{full\ train}}/256\rceil$. Every run uses $200B$ optimizer updates, batch size 256, FP32, AdamW, learning rate $3\times10^{-4}$, and weight decay $10^{-4}$. Warmup lasts $5B$ updates. The learning-rate schedule is shared across budgets. Checkpoints occur at $B$ times 5, 10, 20, 40, 60, 80, 100, 150, and 200. Matching updates gives the smaller dataset more passes through its examples while keeping the optimization budget fixed.
 
-PG uses 40 epochs of SPO+ initialization followed by 160 PG epochs. Both losses use deterministic ties and exact top-k operations. Their population guarantees require assumptions that are not established for this dataset; ordinary mean regression can itself support optimal expected selection under the appropriate information model ([Hu et al.](https://doi.org/10.1287/mnsc.2022.4383)). Minibatch training and a full held-out candidate pool also differ in pool size.
+All methods receive the same quantitative assay measurements; the training loss determines whether their magnitudes, threshold events, or both contribute to fitting. The joint model tests whether retaining continuous supervision helps the threshold task. [Rauschenberger and Glaab](https://doi.org/10.1080/02664763.2023.2233057) study this information-retention problem by combining separately fitted linear and logistic predictions. Our shared-encoder joint loss is a different implementation of the broader idea.
 
-## Training and model choice
+## Model choice and evaluation
 
-The [extended configuration](../configs/extended.json) specifies 108 runs: nine settings, three paired replicates, three CD16 training budgets, and one full-data CD45 comparison. All use the full image model, FP32 training, AdamW, and a 200-epoch horizon. At reduced budgets, replicates vary both the sampled training fields and initialization.
+Model selection is performed separately for each training budget and deployment utility. Each method maximizes its corresponding validation utility at $q=0.10$, averaged across the three training seeds. Joint models select both a weight and a checkpoint. Ties favor the earlier checkpoint, then the smaller weight. Selected models remain separate across seeds; predictions are not ensembled.
 
-Prediction and SPO+ models retain epochs 20, 40, 60, 80, 100, 150, and 200. PG candidates begin at epoch 60, after its initialization stage. Validation metrics are averaged across the three replicates. Each method selects its checkpoint by primary-budget utility; joint models also select the classification weight, and PG selects $h$. A separate predictive selector minimizes validation RMSE over the same MSE/CE candidate family. Metrics are averaged across separately fitted models.
+Both joint heads are evaluated at every chosen joint checkpoint. This permits a comparison of their ranking scores with the model weights held fixed. Comparisons across separately chosen checkpoints are reported as differences between selected policies, rather than as effects of changing only the readout.
 
-The initial study also compares task weights at epoch 40 to hold stopping time fixed. A bounded, secondary CD45 classifier continuation retained the original epoch-200 model. Protocols record selected states and hashes before evaluation. Model selection uses validation data ([Cawley and Talbot](https://www.jmlr.org/papers/v11/cawley10a.html)).
+After choices are frozen, every retained score is evaluated for both mean abundance and purity at $q\in\{0.05,0.10,0.20\}$. The 5% and 20% budgets use the models selected at 10%. Selection uses predicted scores only. Binary logits are ranked directly to avoid numerical ties from saturated probabilities; probabilities are computed separately for evaluation. RMSE describes the trained regression head; Brier score and log loss assess the trained probability head. These remain head-specific diagnostics when the other joint head supplies the ranking score.
 
-## Diagnostics and scope
+External evaluation uses all 27,857 single-CD16 cells from one batch-1 slide as a separate candidate pool. It applies the frozen models, training normalization, and marker threshold without external fitting or model selection.
 
-Matched regression heads are fitted to frozen CE, MSE, and joint encoders from epoch 40. The three encoders use the same readout architecture and training procedure. A positive affine calibration fitted on validation predictions separates scale and offset error from ranking changes.
+Each pool's marker-high prevalence and hindsight purity ceiling, $\min(n_+,k)/k$, provide context for selection performance. Paired differences use 2,000 field-bootstrap draws shared across models and seeds, with selection recomputed in every draw. These intervals condition on the trained models, selected settings, fixed threshold, and data split. They are per-comparison intervals without multiplicity adjustment. Variation across the three training seeds is reported separately.
 
-Achieved enrichment is split into the contribution of selected type proportions and the improvement over random selection within those same types. A separate hindsight decomposition compares the selected set with the best measured-marker sets under fixed and unrestricted type counts. These are retrospective accounting identities, not causal decompositions or estimates of entirely avoidable error.
+## Scope
 
-Paired field bootstrap intervals rerank every resampled pool and use the same field draws for all compared models and replicates. They condition on the frozen models and choices, excluding retraining, model selection, alternative splits, and donor variation. They are unadjusted per-comparison intervals. The validation-budget analysis uses disjoint selection and assessment fields within each repeated split; its overlapping-split quantiles are not confidence intervals from independent datasets.
+BCE is a proper predictive loss for threshold exceedance, not a direct top-k optimization loss. Differences between learned scores do not establish a mechanism involving conditional variance. Keeping the same numerical threshold on the external slide tests transport of the measurement-scale task; acquisition and fluorescence-processing differences can affect its meaning. These two slides do not establish donor-level generalization.
 
-The within-slide test was inspected in the initial study, so subsequent experiments on it are exploratory. External choices were frozen before external performance was examined. The two external slides differ in acquisition, population eligibility, and measurement conditions; they are not an isolated signal-strength intervention. Compare methods within each slide, rather than comparing absolute marker utility across slides. Donor-level generalization remains untested.
-
-Bibliographic details are in [references.bib](references.bib). Reported summaries and figures are under [results](../results/).
+Full bibliographic details are in [references.bib](references.bib).
