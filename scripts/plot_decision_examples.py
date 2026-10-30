@@ -53,8 +53,8 @@ def plot_examples(results, output):
     )
     fig, axes = plt.subplots(1, 2, figsize=(6.7, 2.5), sharey=True)
     comparisons = [
-        (mean, probability, "mean_marker", "Mean score", "Probability score"),
-        (utility_stop, loss_stop, "log_loss", "Utility stopping", "Log-loss stopping"),
+        (mean, probability, "mean_marker", "Regression head", "Classification head"),
+        (utility_stop, loss_stop, "log_loss", "Validation precision", "Validation log loss"),
     ]
     for ax, (before, after, x, first, second) in zip(axes, comparisons):
         for seed in before.index:
@@ -76,9 +76,9 @@ def plot_examples(results, output):
         ax.grid(axis="y", color="0.92", linewidth=0.5)
         ax.set_axisbelow(True)
     axes[0].set_title("A  Score choice", loc="left")
-    axes[0].set(xlabel="Mean selected CD16 (a.u.)", ylabel="Marker-high purity (%)")
+    axes[0].set(xlabel="Mean selected CD16 (a.u.)", ylabel="Precision at $k$ (%)")
     axes[0].legend(frameon=False, loc="lower left")
-    axes[1].set_title("B  Stopping criterion", loc="left")
+    axes[1].set_title("B  Model selection", loc="left")
     axes[1].set_xlabel("Log loss (lower is better)")
     axes[1].legend(frameon=False, loc="upper left")
     fig.tight_layout(pad=0.6, w_pad=1.4)

@@ -8,7 +8,7 @@ For a pool of $N$ cells, a score selects the largest $k=\lceil qN\rceil$ values.
 
 $$U_{\mathrm{mean}}(S)=\frac{1}{k}\sum_{i\in S}y_i,\qquad U_{\mathrm{purity}}(S)=\frac{1}{k}\sum_{i\in S}\mathbf{1}\{y_i\ge\tau\}.$$
 
-The primary budget is $q=0.10$. Mean abundance values every increase in marker level; purity counts whether a cell meets the threshold. Under the usual per-cell conditional prediction model, their optimal scores are $E[Y\mid X]$ and $P(Y\ge\tau\mid X)$, respectively. These can induce different rankings. Matching the predictive target to its intended use follows the decision-theoretic treatment of [Gneiting](https://doi.org/10.1198/jasa.2011.r10138); fixed-fraction selection also connects to [accuracy at the top](https://proceedings.neurips.cc/paper/2012/hash/7fe1f8abaad094e0b5cb1b01d712f708-Abstract.html).
+The primary budget is $q=0.10$. Mean abundance values every increase in marker level. The fraction at or above the threshold is precision at $k$, stored as `purity` in the result tables. Under the usual per-cell conditional prediction model, their optimal scores are $E[Y\mid X]$ and $P(Y\ge\tau\mid X)$, respectively. These can induce different rankings. Matching the predictive target to its intended use follows the decision-theoretic treatment of [Gneiting](https://doi.org/10.1198/jasa.2011.r10138); fixed-fraction selection also connects to [accuracy at the top](https://proceedings.neurips.cc/paper/2012/hash/7fe1f8abaad094e0b5cb1b01d712f708-Abstract.html).
 
 ## Cohort and label budgets
 
