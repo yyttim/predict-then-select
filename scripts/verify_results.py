@@ -25,10 +25,11 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def checked(root, relative, digest):
+def checked(root, relative, digest, allowed_root=None):
     root = Path(root).resolve()
     path = (root / relative).resolve()
-    require(path.is_relative_to(root) and sha(path) == digest, f"Changed artifact: {relative}")
+    boundary = root if allowed_root is None else Path(allowed_root).resolve()
+    require(path.is_relative_to(boundary) and sha(path) == digest, f"Changed artifact: {relative}")
     return path
 
 
@@ -79,6 +80,14 @@ def verify(study, pool="test"):
         == evaluation["data_manifest_sha256"],
         "Data binding differs",
     )
+    model_bank = None
+    if "primary_selection_sha256" in selection:
+        require(
+            sha(root.parent / "selection.json") == selection["primary_selection_sha256"]
+            and sha(root.parent / "study.json") == selection["study_sha256"],
+            "Parent study binding differs",
+        )
+        model_bank = root.parent / "runs"
     seeds = spec["settings"]["seeds"]
     require(
         seeds
@@ -149,7 +158,7 @@ def verify(study, pool="test"):
         require(choice["score"] == intended, "Selection purpose uses the wrong score")
         for state in choice["states"]:
             relative = state["checkpoint"]
-            path = checked(root, relative, state["checkpoint_sha256"])
+            path = checked(root, relative, state["checkpoint_sha256"], allowed_root=model_bank)
             if relative not in cache:
                 checkpoint = torch.load(path, map_location="cpu", weights_only=True)
                 record = files[relative]

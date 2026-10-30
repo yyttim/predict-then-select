@@ -151,3 +151,20 @@ def test_saved_metrics_and_checkpoint_binding_are_independently_checked(tmp_path
     write(output / "evaluation.json", evaluation)
     with pytest.raises(ValueError, match="Checkpoint configuration"):
         audit.verify(tmp_path)
+
+
+def test_shared_model_bank_is_explicitly_bounded(tmp_path):
+    bank, analysis = tmp_path / "runs", tmp_path / "stopping"
+    bank.mkdir()
+    analysis.mkdir()
+    (bank / "weights.pt").write_bytes(b"weights")
+    digest = audit.sha(bank / "weights.pt")
+    with pytest.raises(ValueError, match="Changed artifact"):
+        audit.checked(analysis, "../runs/weights.pt", digest)
+    assert (
+        audit.checked(analysis, "../runs/weights.pt", digest, allowed_root=bank)
+        == bank / "weights.pt"
+    )
+    (tmp_path / "outside.pt").write_bytes(b"weights")
+    with pytest.raises(ValueError, match="Changed artifact"):
+        audit.checked(analysis, "../outside.pt", digest, allowed_root=bank)

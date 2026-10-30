@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "study": "marker-objectives",
+  "inference_commit": "78571c5c622f1c1ce664bbac6a59565a6c52689a",
+  "folder": "https://drive.google.com/drive/folders/1A3sDK0kEPocnoLUpg5mFG3833X6mmXEZ",
+  "data_manifest_sha256": "978e968d5a030ad17c6c52c6f703798aec2666f9d96d4df51a9d3a2632fa624d",
+  "files": {
+    "data": {
+      "filename": "prepared-data.tar.xz",
+      "id": "1NfFsoUeoDD6F-dpK-uySMBHXYRkaF3S-",
+      "sha256": "713c8a075443d5e63a01f554d923e6f0bdfe9ea91f62c89c095f7d7afb9cb1c5",
+      "bytes": 68139900,
+      "url": "https://drive.google.com/file/d/1NfFsoUeoDD6F-dpK-uySMBHXYRkaF3S-/view?usp=drivesdk"
+    },
+    "seed16": {
+      "filename": "seed16.zip",
+      "id": "1Z2pqshPMeXlH9G8hxCO0CEb1OPt9v3lG",
+      "sha256": "65f64d2748aa4469d3427f6a46eeb9aa0b432b7fc4a811b25d524be53c065059",
+      "bytes": 57305187,
+      "url": "https://drive.google.com/file/d/1Z2pqshPMeXlH9G8hxCO0CEb1OPt9v3lG/view?usp=drivesdk"
+    },
+    "seed26": {
+      "filename": "seed26.zip",
+      "id": "1KSMtZB6r7EGsCOl5X6Hj3drlhibENgi0",
+      "sha256": "f2ebd07690ce793a42a8e3c0d54066247676f0002aaa2cf1ace9d28aa4c1945a",
+      "bytes": 57307757,
+      "url": "https://drive.google.com/file/d/1KSMtZB6r7EGsCOl5X6Hj3drlhibENgi0/view?usp=drivesdk"
+    },
+    "seed36": {
+      "filename": "seed36.zip",
+      "id": "1-O5ZLtcVI9E2qKuMiMhUOjkKwy9VOkS-",
+      "sha256": "1330d40695379c0f3ea468597883c3246c1cb66ab2f3ebae034568fd9a6fb157",
+      "bytes": 57302131,
+      "url": "https://drive.google.com/file/d/1-O5ZLtcVI9E2qKuMiMhUOjkKwy9VOkS-/view?usp=drivesdk"
+    },
+    "reference": {
+      "filename": "reference-results.zip",
+      "id": "130_1DAII0U6Mi_R0u-Tl-UL-YjHO3QO9",
+      "sha256": "659779f315b5e5b042b30034e6053b7b654bc84f2c105327e51650935b783df6",
+      "bytes": 13226811,
+      "url": "https://drive.google.com/file/d/130_1DAII0U6Mi_R0u-Tl-UL-YjHO3QO9/view?usp=drivesdk"
+    }
+  },
+  "notebook": {
+    "filename": "marker_objectives.ipynb",
+    "repository_path": "notebooks/pretrained_models.ipynb",
+    "bytes": 17018,
+    "sha256": "31a84782d9a272cac0b7c76f759d16c3cb336ffe5a14d57128e57d3247fc4838",
+    "id": "1T8haOk2WQxb-4HvJY0jJgpssHvKUzmG_",
+    "url": "https://drive.google.com/file/d/1T8haOk2WQxb-4HvJY0jJgpssHvKUzmG_/view?usp=drivesdk"
+  },
+  "readme": {
+    "filename": "README.txt",
+    "bytes": 1026,
+    "sha256": "42478d16c069d69fadfb8f7a03cd24a9aa3902cafab66dc146cf2b9b817d48d4",
+    "id": "1NpJrzQTVCd7J35FBEUik79YXNfNSIIEw",
+    "url": "https://drive.google.com/file/d/1NpJrzQTVCd7J35FBEUik79YXNfNSIIEw/view?usp=drivesdk"
+  },
+  "checksums": {
+    "filename": "SHA256SUMS.txt",
+    "bytes": 573,
+    "sha256": "b41e93ff31804c625586c99f44b789bf5575e955a236e938cb73c440157589c6",
+    "id": "13suCGpjPrHAiNUFlgWOfQRAHtLxNN_3Q",
+    "url": "https://drive.google.com/file/d/13suCGpjPrHAiNUFlgWOfQRAHtLxNN_3Q/view?usp=drivesdk"
+  }
+}

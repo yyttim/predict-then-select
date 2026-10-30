@@ -174,7 +174,13 @@ def summarize(study_root, output, draws=None, pool="test"):
                 for row in rows
             )
     pd.DataFrame(interactions).to_csv(tables / "budget_interactions.csv", index=False)
-    plot_results(summary, paired, figures, settings["primary_fraction"])
+    pool_label = "Main test" if pool == "test" else "External cohort"
+    rule = (
+        "predictive-loss selection"
+        if "primary_selection_sha256" in choices
+        else "utility selection"
+    )
+    plot_results(summary, paired, figures, settings["primary_fraction"], f"{pool_label}, {rule}")
     save_json(
         output / "summary.json",
         {
@@ -194,7 +200,7 @@ def summarize(study_root, output, draws=None, pool="test"):
     return summary, paired
 
 
-def plot_results(summary, paired, output, q):
+def plot_results(summary, paired, output, q, title=""):
     plt.rcParams.update(
         {
             "font.family": "DejaVu Sans",
@@ -212,7 +218,7 @@ def plot_results(summary, paired, output, q):
         ("purity", "mean"),
         ("purity", "mean_marker"),
         (100, 1),
-        ("Marker-high cells selected (%)", "Mean selected CD16 (a.u.)"),
+        ("Marker-high purity (%)", "Mean selected CD16 (a.u.)"),
     ):
         data = summary[
             (summary.selected_for == purpose)
@@ -237,8 +243,9 @@ def plot_results(summary, paired, output, q):
         ax.set_title("Select for purity" if purpose == "purity" else "Select for mean abundance")
         ax.grid(axis="y", color="0.92")
     handles, names = axes[0].get_legend_handles_labels()
+    fig.suptitle(f"{title} | top {q:.0%} | mean ± seed SD", fontsize=11)
     fig.legend(handles, names, loc="lower center", ncol=3, frameon=False, fontsize=9)
-    fig.tight_layout(rect=(0, 0.1, 1, 1))
+    fig.tight_layout(rect=(0, 0.1, 1, 0.94))
     for ext in ("png", "pdf"):
         fig.savefig(output / f"objectives.{ext}", dpi=200)
     plt.close(fig)
@@ -275,11 +282,13 @@ def plot_results(summary, paired, output, q):
             ax.plot(x, y, marker, color=color, label=f"{fraction:.0%} training fields")
         ax.axvline(0, color="0.6", linewidth=0.8)
         ax.set(yticks=range(len(pair_names)), yticklabels=list(pair_names.values()), xlabel=xlabel)
-        ax.invert_yaxis()
+        ax.set_ylim(2.35, -0.35)
+        ax.tick_params(axis="y", labelleft=ax is axes[0])
         ax.grid(axis="x", color="0.92")
     handles, names = axes[0].get_legend_handles_labels()
+    fig.suptitle(f"{title} | top {q:.0%} | conditional 95% field intervals", fontsize=11)
     fig.legend(handles, names, loc="lower center", ncol=2, frameon=False, fontsize=9)
-    fig.tight_layout(rect=(0, 0.1, 1, 1))
+    fig.tight_layout(rect=(0, 0.1, 1, 0.94))
     for ext in ("png", "pdf"):
         fig.savefig(output / f"paired_effects.{ext}", dpi=200)
     plt.close(fig)

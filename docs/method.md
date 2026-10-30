@@ -50,6 +50,8 @@ Each pool's marker-high prevalence and hindsight purity ceiling, $\min(n_+,k)/k$
 
 ## Scope
 
+After the primary evaluation, we added an exploratory stopping-rule check using the same trained model bank. MSE models select checkpoints by validation MSE and BCE models by validation log loss; joint models select their weight and checkpoint by the proper loss of the head used for the intended task. MSE is averaged across seeds before selection, rather than averaging RMSE. This analysis has separate choices and outputs; it does not replace the utility-selected results.
+
 BCE is a proper predictive loss for threshold exceedance, not a direct top-k optimization loss. Differences between learned scores do not establish a mechanism involving conditional variance. Keeping the same numerical threshold on the external slide tests transport of the measurement-scale task; acquisition and fluorescence-processing differences can affect its meaning. These two slides do not establish donor-level generalization.
 
 Full bibliographic details are in [references.bib](references.bib).

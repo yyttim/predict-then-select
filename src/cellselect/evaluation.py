@@ -72,13 +72,13 @@ def freeze_selection(data, study_root):
                         or (config["method"] == "joint" and purpose == "mean")
                         else "hit_logit"
                     )
-                    utility = selection_metrics(
+                    outcomes = selection_metrics(
                         target,
                         predictions[score],
                         ids,
                         threshold,
                         spec["settings"]["primary_fraction"],
-                    )[metric]
+                    )
                     candidates.append(
                         {
                             "train_fraction": config["fraction"],
@@ -88,7 +88,11 @@ def freeze_selection(data, study_root):
                             "step": state["step"],
                             "selected_for": purpose,
                             "score": score,
-                            "validation_utility": utility,
+                            "validation_utility": outcomes[metric],
+                            "validation_selected": outcomes["n_selected"],
+                            "validation_high_selected": round(
+                                outcomes["purity"] * outcomes["n_selected"]
+                            ),
                             **diagnostics,
                             "checkpoint": checkpoint_path.relative_to(root).as_posix(),
                             "checkpoint_sha256": state["checkpoint_sha256"],
@@ -111,6 +115,17 @@ def freeze_selection(data, study_root):
                 )
                 if not (menu["count"] == len(spec["settings"]["seeds"])).all():
                     raise ValueError("A candidate is missing a paired seed")
+                if purpose == "purity":
+                    counts = (
+                        part.groupby(["weight", "step"])[
+                            ["validation_high_selected", "validation_selected"]
+                        ]
+                        .sum()
+                        .reset_index()
+                    )
+                    menu = menu.merge(counts, on=["weight", "step"], validate="one_to_one")
+                    # Equal integer hit counts must remain ties after averaging seeds.
+                    menu["mean"] = menu.validation_high_selected / menu.validation_selected
                 winner = menu.sort_values(
                     ["mean", "step", "weight"], ascending=[False, True, True]
                 ).iloc[0]
@@ -136,6 +151,7 @@ def freeze_selection(data, study_root):
     result = {
         "data_manifest_sha256": data.manifest_sha256,
         "study_sha256": file_hash(root / "study.json"),
+        "selection_source_sha256": file_hash(Path(__file__)),
         "threshold": threshold,
         "primary_fraction": spec["settings"]["primary_fraction"],
         "selections": selections,

@@ -53,3 +53,19 @@ python scripts/summarize_study.py --study results/study --pool external
 Test and external predictions remain in separate directories. The last two commands create the main tables and figures under `results/` and the external report under `results/external/`. Both pools use the original training normalization, threshold and validation choices.
 
 The default is CUDA. Training and evaluation accept `--device cpu`; the full grid is intended for a GPU. The recorded implementation uses FP32 without TF32. Small numerical differences across hardware or library versions can change nearly tied selections.
+
+## Stopping-rule sensitivity
+
+This exploratory check reuses the trained bank and selects states by validation predictive loss. It writes a separate analysis under `results/study/stopping/` and leaves the primary choices intact.
+
+```text
+python scripts/stopping_sensitivity.py --study results/study
+python scripts/evaluate_study.py test --data data/prepared/cd16_selection --study results/study/stopping
+python scripts/evaluate_study.py external --data data/prepared/cd16_selection --study results/study/stopping
+python scripts/summarize_study.py --study results/study/stopping --output results/stopping
+python scripts/summarize_study.py --study results/study/stopping --pool external --output results/stopping/external
+python scripts/compare_stopping.py --study results/study
+python scripts/compare_stopping.py --study results/study --pool external
+```
+
+`scripts/verify_results.py --study results/study --pool test` independently reconstructs each reported outcome from saved predictions and checks its model/data bindings. The same command accepts `--pool external` or the stopping-study directory.
