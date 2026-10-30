@@ -1,75 +1,84 @@
-# Reproduction
+# Reproducing the study
 
-Use Python 3.11 or newer and install a PyTorch build for your GPU. From the repository root:
-
-```text
-python -m venv .venv
-```
-
-Activate `.venv` (`.venv\Scripts\Activate.ps1` on Windows, `source .venv/bin/activate` on Linux/macOS), then install the package:
+Run commands from the repository root in an activated Python environment. Python 3.11 or newer is required. Install a CUDA-enabled PyTorch build for the supplied GPU configurations, then install the project with the recorded dependency versions:
 
 ```text
 python -m pip install -e ".[data,dev]" -c requirements-reproduce.txt
 python -m pytest -q
 ```
 
-## Data
+The reported experiments used PyTorch 2.7, CUDA 12.8, and an RTX 5090. Numerical results can differ across library versions and hardware. To use a CPU, create separate training configurations with `device` set to `cpu` and add `--device cpu` to the evaluation and readout commands. The full grid is intended for GPU execution.
 
-Download the two full BSCCMNIST archive chunks from [Dryad](https://doi.org/10.5061/dryad.sxksn038s), version May 6, 2025, and place them in `data/archives/`:
+The repository includes published [tables](../results/tables/) and [figures](../results/figures/). Prepared data, selected checkpoints, and per-cell predictions are available from [Downloads](downloads.md). Use the [pretrained-model notebook](../notebooks/pretrained_models.ipynb) to evaluate those checkpoints. The commands below generate new runs and protocols; keep their output directories separate from the downloaded reference results.
 
-- `BSCCMNIST.tar.gz_chunk00000.bin`
-- `BSCCMNIST.tar.gz_chunk00001.bin`
+## Prepare the data
 
-Preparation verifies the official archive hashes, extracts the required metadata and CD16 images, and retains their native four-channel 28×28 resolution.
+To use the exact prepared cohorts, download both data archives from [Downloads](downloads.md) and extract them at the repository root. This supplies every cell used in the study, with the original split and metadata. To rebuild these cohorts from the source release, follow the steps below.
 
-```text
-python scripts/prepare_data.py --source data/raw/BSCCMNIST --archives data/archives --output data/prepared/cd16_selection
-```
-
-The prepared arrays contain every eligible single-CD16 cell from batch 0 and batch 1. Batch 0 supplies the grouped training, validation and test partitions; batch 1 is the external pool. The manifest records identities, splits, the fixed marker threshold and file hashes. Existing locked prepared data are not overwritten.
-
-## Training
-
-The declared grid contains 30 runs. Every run uses the full CNN–ViT and the same update budget; the 25% condition is a training-data experiment, not a smaller network.
+Download the two full **BSCCMNIST** chunks from [Dryad](https://doi.org/10.5061/dryad.sxksn038s), version May 6, 2025. They are `BSCCMNIST.tar.gz_chunk00000.bin` and `BSCCMNIST.tar.gz_chunk00001.bin`, totaling approximately 6.23 GB compressed. On the website, select both files and download the selected-files ZIP. Save it as `./data/bsccmnist.zip`.
 
 ```text
-python scripts/run_study.py --data data/prepared/cd16_selection --output results/study
+python scripts/download_data.py --data-root ./data --from-zip ./data/bsccmnist.zip
+python scripts/prepare_data.py --data-root ./data
+python scripts/prepare_external_data.py --data-root ./data --main-data ./data/prepared/bsccmnist_cd16_v1
 ```
 
-The command saves `study.json`, training histories, checkpoint weights and validation predictions. Completed runs are reused only when their configuration, training source and data match. Use a new output directory after changing the study. Optional `--seed`, `--method` and `--fraction` arguments run a declared portion of the grid. Do not launch two workers for the same run.
-
-## Model selection and evaluation
-
-First select all models using validation data. This step requires the complete grid and writes `selection.json` before any held-out evaluation.
+The downloader verifies archive checksums and keeps the original chunks. Preparation writes images, metadata, and a split manifest to `./data/prepared/bsccmnist_cd16_v1`; the external slides go to `./data/prepared/bsccmnist_batch1_all_v1`. The full archives must remain available for external-data preparation. API downloading is also supported through the `DRYAD_TOKEN` environment variable:
 
 ```text
-python scripts/evaluate_study.py freeze --data data/prepared/cd16_selection --study results/study
-python scripts/evaluate_study.py test --data data/prepared/cd16_selection --study results/study
-python scripts/evaluate_study.py external --data data/prepared/cd16_selection --study results/study
-python scripts/summarize_study.py --study results/study
-python scripts/summarize_study.py --study results/study --pool external
+python scripts/download_data.py --data-root ./data
 ```
 
-Test and external predictions remain in separate directories. The last two commands create the main tables and figures under `results/` and the external report under `results/external/`. Both pools use the original training normalization, threshold and validation choices.
+## Initial predictive-objective comparison
 
-The default is CUDA. Training and evaluation accept `--device cpu`; the full grid is intended for a GPU. The recorded implementation uses FP32 without TF32. Small numerical differences across hardware or library versions can change nearly tied selections.
-
-## Stopping-rule sensitivity
-
-This exploratory check reuses the trained bank and selects states by validation predictive loss. It writes a separate analysis under `results/study/stopping/` and leaves the primary choices intact.
+This 18-run comparison supplies the frozen encoders and candidate bank used by the readout and validation-budget analyses.
 
 ```text
-python scripts/stopping_sensitivity.py --study results/study
-python scripts/evaluate_study.py test --data data/prepared/cd16_selection --study results/study/stopping
-python scripts/evaluate_study.py external --data data/prepared/cd16_selection --study results/study/stopping
-python scripts/summarize_study.py --study results/study/stopping --output results/stopping
-python scripts/summarize_study.py --study results/study/stopping --pool external --output results/stopping/external
-python scripts/compare_stopping.py --study results/study
-python scripts/compare_stopping.py --study results/study --pool external
-python scripts/error_accounting.py --study results/study
-python scripts/plot_decision_examples.py
+python scripts/train.py --config configs/core.json --data ./data/prepared/bsccmnist_cd16_v1 --output results/runs/core
+python scripts/evaluate.py freeze --data ./data/prepared/bsccmnist_cd16_v1 --runs results/runs/core --experiment configs/core.json --protocol results/core_protocol.json
+python scripts/validation_stability.py --data ./data/prepared/bsccmnist_cd16_v1 --runs results/runs/core --protocol results/core_protocol.json --output results/validation_stability.json
+python scripts/evaluate.py test --data ./data/prepared/bsccmnist_cd16_v1 --runs results/runs/core --protocol results/core_protocol.json --output results/core
 ```
 
-The last two commands attribute loss and utility changes to retained and exchanged cells, then plot the paired external examples. They use saved predictions and tables without fitting new models.
+## Extended objective and training-budget study
 
-`scripts/verify_results.py --study results/study --pool test` independently reconstructs each reported outcome from saved predictions and checks its model/data bindings. The same command accepts `--pool external` or the stopping-study directory.
+The 108-run grid includes the CD16 training budgets, CD45, SPO+, and central PG. It creates a separate set of run records. Freezing checks that the declared grid is complete and selects models from validation predictions before opening either evaluation cohort.
+
+```text
+python scripts/train.py --config configs/extended.json --data ./data/prepared/bsccmnist_cd16_v1 --output results/runs/extended
+python scripts/extended_study.py freeze --data ./data/prepared/bsccmnist_cd16_v1 --external ./data/prepared/bsccmnist_batch1_all_v1 --runs results/runs/extended --spec configs/extended.json --protocol results/extended_protocol.json
+python scripts/extended_study.py evaluate --data ./data/prepared/bsccmnist_cd16_v1 --external ./data/prepared/bsccmnist_batch1_all_v1 --runs results/runs/extended --protocol results/extended_protocol.json --output results/extended
+python scripts/extended_study.py uncertainty --data ./data/prepared/bsccmnist_cd16_v1 --external ./data/prepared/bsccmnist_batch1_all_v1 --protocol results/extended_protocol.json --output results/extended --bootstrap 2000
+python scripts/verify_extended_results.py --data ./data/prepared/bsccmnist_cd16_v1 --external ./data/prepared/bsccmnist_batch1_all_v1 --runs results/runs/extended --spec configs/extended.json --protocol results/extended_protocol.json --results results/extended
+python scripts/summarize_extended_results.py --protocol results/extended_protocol.json --results results/extended
+```
+
+Fresh policy tables are written to `results/extended/policy_summary.csv`, `paired_summary.csv`, and `metrics.csv`. The tracked copies in `results/tables/` remain the published results.
+
+## Readout and validation-budget analyses
+
+The readout experiment fits identical marker heads to the fixed epoch-40 encoders from the initial comparison. Its training stage also freezes the head-selection protocol.
+
+```text
+python scripts/readout_probe.py train --data ./data/prepared/bsccmnist_cd16_v1 --runs results/runs/core --core-protocol results/core_protocol.json --output results/readout_probe
+python scripts/readout_probe.py test --data ./data/prepared/bsccmnist_cd16_v1 --runs results/runs/core --core-protocol results/core_protocol.json --output results/readout_probe
+python scripts/validation_budget.py --data ./data/prepared/bsccmnist_cd16_v1 --runs results/runs/core --protocol results/core_protocol.json --output results/validation_budget.json.gz --summary-output results/validation_budget_summary.json --repetitions 500
+python scripts/plot_extended_results.py
+```
+
+The plotting script reads completed main, readout, and validation-budget results and writes fresh figures to `results/figures_extended/`. It does not fit or choose models. The analytical surrogate example is independent of the microscopy experiments:
+
+```text
+python scripts/verify_surrogate_example.py --output results/surrogate_example --plot
+```
+
+## Run directories
+
+Each protocol records the data, code, and model versions used for evaluation.
+Completed runs are reused only when those records match. After changing an
+experiment, use a new output directory and generate a new protocol. Partial
+runs and frozen results are protected against replacement.
+
+The published tables come from the original execution. Fresh runs generate
+their own manifests and hashes; numerical differences across hardware and
+library versions are possible.

@@ -18,11 +18,11 @@ The shared representation has width 256.
 
 Task refinements and the 128/64-unit prediction heads are retained. Cross-task
 gating is replaced by independent heads that interact through the shared encoder.
-The regression head predicts one marker. Classification returns one event logit, and
+The regression head predicts one marker. Classification returns logits, and
 marker normalization is handled by the data pipeline.
 
-The adapted model has 1,289,583 parameters: 941,165 in the encoder and 174,209
-in each head. Dropout rates match
+The adapted model has 1,289,713 parameters: 941,165 in the encoder, 174,339 in
+the classification head, and 174,209 in the regression head. Dropout rates match
 the reference. Attention weights are not materialized during the forward pass.
 
 Tests load identical weights into the adaptation and the ungated reference,

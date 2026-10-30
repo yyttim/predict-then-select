@@ -1,88 +1,65 @@
+import itertools
 import numpy as np
 import pytest
-
 from cellselect.metrics import (
-    paired_field_bootstrap,
-    prediction_metrics,
     selection_metrics,
-    top_indices,
+    topk_indices,
+    quota_counts,
+    quota_selection,
+    paired_field_bootstrap,
 )
 
 
-def test_ties_use_ids_and_never_outcomes():
-    ids = np.array([30, 10, 20])
-    assert top_indices([1, 1, 1], ids, 0.5).tolist() == [1, 2]
-    a = selection_metrics([100, 2, 3], [1, 1, 1], ids, 3, 0.5)
-    assert a["mean_marker"] == 2.5 and a["purity"] == 0.5
+def test_oracle_decomposition_matches_exhaustive_subsets():
+    y = np.array([9.0, 1.0, 8.0, 7.0, 2.0, 0.0])
+    score = np.array([2.0, 8.0, 1.0, 3.0, 7.0, 4.0])
+    c = np.array([0, 0, 1, 1, 2, 2])
+    for k in range(1, len(y) + 1):
+        m = selection_metrics(y, score, c, k / len(y))
+        selected = topk_indices(score, k)
+        counts = np.bincount(c[selected], minlength=3)
+        sets = list(itertools.combinations(range(len(y)), k))
+        oracle = max(y[list(s)].mean() for s in sets)
+        constrained = max(
+            y[list(s)].mean()
+            for s in sets
+            if np.array_equal(np.bincount(c[list(s)], minlength=3), counts)
+        )
+        assert m["oracle_utility"] == pytest.approx(oracle)
+        assert m["same_counts_oracle_utility"] == pytest.approx(constrained)
+        assert m["oracle_gap"] == pytest.approx(m["within_type_gap"] + m["type_allocation_gap"])
 
 
-def test_threshold_includes_equality_and_ceiling_budget():
-    result = selection_metrics([1, 2, 3], [3, 2, 1], [0, 1, 2], 2, 0.5)
-    assert result["n_selected"] == 2
-    assert result["n_high"] == 2
-    assert result["purity"] == 0.5
-    assert result["oracle_purity"] == 1
-    result = selection_metrics([1, 2, 3], [3, 2, 1], [0, 1, 2], 4, 1)
-    assert result["oracle_purity"] == 0
+def test_ties_and_monotone_transform_do_not_change_selection():
+    score = np.array([1.0, 3.0, 3.0, 2.0])
+    ids = np.array([20, 40, 10, 30])
+    selected = ids[topk_indices(score, 2, ids)]
+    assert np.array_equal(selected, [10, 40])
+    p = np.array([2, 0, 3, 1])
+    assert np.array_equal(selected, ids[p][topk_indices(score[p], 2, ids[p])])
+    assert np.array_equal(topk_indices(score, 3), topk_indices(8 * score + 91, 3))
 
 
-def test_extreme_logits_keep_order_and_finite_diagnostics():
-    assert top_indices([1000, 1001], [0, 1], 0.5).tolist() == [1]
-    m = prediction_metrics([0, 2], 1, hit_logit=[-1000, 1000])
-    assert m["brier"] == 0 and m["log_loss"] == 0
-    assert "rmse" not in m
+def test_quota_capacity_is_common_and_exact():
+    counts = quota_counts([0.8, 0.1, 0.1], [1, 5, 4], 7)
+    assert counts.sum() == 7 and counts[0] == 1
+    y = np.arange(10.0)
+    classes = np.array([0] + [1] * 5 + [2] * 4)
+    assert quota_selection(y, y, classes, counts)["k"] == 7
 
 
-def test_mean_enrichment_and_hit_purity_can_prefer_different_sets():
-    # A has mean20 and hit probability.2; B has mean15 and hit probability1.
-    target = np.array([100, 0, 0, 0, 0, 15, 15, 15, 15, 15])
-    mean_score = [20] * 5 + [15] * 5
-    hit_score = [0.2] * 5 + [1] * 5
-    a = selection_metrics(target, mean_score, np.arange(10), 10, 0.5)
-    b = selection_metrics(target, hit_score, np.arange(10), 10, 0.5)
-    assert a["mean_marker"] > b["mean_marker"]
-    assert a["purity"] < b["purity"]
+def test_paired_bootstrap_identity_and_reproducibility():
+    y = np.arange(12.0)
+    groups = np.repeat(np.arange(4), 3)
+    m = paired_field_bootstrap(y, y, y, groups, 0.25, 20)
+    assert m["ci_low"] == m["ci_high"] == m["difference_a_minus_b"] == 0
+    a = paired_field_bootstrap(y, y, -y, groups, 0.25, 20)
+    b = paired_field_bootstrap(y, y, -y, groups, 0.25, 20)
+    assert a == b and a["ci_low"] > 0
 
 
-def test_paired_resampling_cancels_identical_policies():
-    y = np.array([1, 8, 4, 3, 5, 9], dtype=float)
-    a = np.stack([y, -y])
-    rows = paired_field_bootstrap(
-        y, a, a, np.arange(6), [0, 0, 1, 1, 2, 2], threshold=5, fractions=(0.5,), draws=30
-    )
-    assert all(r["difference"] == r["ci_low"] == r["ci_high"] == 0 for r in rows)
-    assert all(r["selected_overlap"] == 1 for r in rows)
-
-
-def test_paired_resampling_reproducible_and_preserves_sign():
-    y = np.array([0, 1, 2, 3, 4, 5], dtype=float)
-    args = (y, y[None], -y[None], np.arange(6), [0, 0, 1, 1, 2, 2], 3)
-    a = paired_field_bootstrap(*args, fractions=(0.5,), draws=40)
-    b = paired_field_bootstrap(*args, fractions=(0.5,), draws=40)
-    assert a == b
-    assert all(r["difference"] > 0 and r["ci_low"] >= 0 for r in a)
-
-
-def test_identical_budget_contrasts_have_zero_interaction():
-    y = np.arange(6, dtype=float)
-    a, b = y[None], -y[None]
-    result = paired_field_bootstrap(
-        y,
-        a,
-        b,
-        np.arange(6),
-        [0, 0, 1, 1, 2, 2],
-        threshold=3,
-        fractions=(0.5,),
-        draws=30,
-        subtract_pair=(a, b),
-    )
-    assert all(r["difference"] == r["ci_low"] == r["ci_high"] == 0 for r in result)
-
-
-@pytest.mark.parametrize(
-    "scores,ids,q", [([], [], 0.1), ([np.nan], [1], 1), ([1], [1], 0), ([1], [1, 2], 1)]
-)
-def test_invalid_rank_inputs(scores, ids, q):
+def test_bad_inputs_fail_instead_of_silent_filtering():
     with pytest.raises(ValueError):
-        top_indices(scores, ids, q)
+        selection_metrics([1, np.nan], [1, 2], [0, 0], 0.5)
+    with pytest.raises(ValueError):
+        quota_counts([1, 1], [1, 1], 3)

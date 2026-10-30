@@ -1,19 +1,20 @@
 # Results
 
-The primary comparison selects models by validation utility at a 10% selection budget. Every selected score is evaluated for both mean CD16 and marker-high purity. `selected_for` records the validation criterion; `primary_score` identifies the intended score for that use.
+These tables and figures summarize the completed experiments. Marker values are released unmixed abundance estimates in arbitrary units. Compare methods within the same marker and candidate pool.
 
-| Location | Contents |
+| File in `tables/` | Contents |
 | --- | --- |
-| `tables/` | Main test pool: all 1,370 cells |
-| `external/tables/` | External pool: all 27,857 cells |
-| `stopping/tables/` | Exploratory predictive-loss stopping, main pool |
-| `stopping/external/tables/` | The same stopping check, external pool |
-| `figures/` in each report | Performance and paired-effect plots, PNG and PDF |
+| `metrics.csv` | Per-run prediction and selection metrics |
+| `policy_summary.csv` | Means and standard deviations across paired runs |
+| `paired_summary.csv` | Utility differences and conditional 95% field-bootstrap intervals |
+| `readout_metrics.csv` | Original scores and matched marker readouts on frozen encoders |
+| `readout_comparisons.csv` | Paired readout differences and intervals |
+| `validation_budget.csv` | Selection and assessment results across 500 validation splits |
+| `validation_comparisons.csv` | Utility-based versus RMSE-based model selection |
+| `classifier_continuation.csv` | CD45 classifier validation results through epoch 400 |
 
-`metrics.csv` gives per-seed outcomes; `summary.csv` gives means and sample SDs. `paired_comparisons.csv` contains fixed-model field-bootstrap intervals, including the comparison between two joint scores at the same checkpoint. `budget_interactions.csv` compares method differences between the two training budgets. `model_choices.csv` and `candidate_pool.csv` record the selected states and each pool's available marker-high cells.
+The main grid contains 108 runs: three seeds, nine objective settings, and four marker/training-size conditions. Models are selected at a 10% validation budget and evaluated at 5%, 10%, and 20% without retuning. `within_slide_test` is the original held-out-field pool; the two `batch_1` pools are separate external slides.
 
-`head_diagnostics.csv` reports RMSE for trained mean heads and Brier/log loss for trained probability heads. These are checkpoint-level diagnostics even when the other joint head supplies the ranking score. The stopping reports also contain `stopping_differences.csv` and `stopping_exchanges.csv`, comparing predictive-loss selection with the original utility-based choices.
+Field-bootstrap intervals use common draws across paired models and hold their parameters and selected settings fixed. Quantiles from the overlapping validation splits are descriptive ranges, not confidence intervals. Missing classification and type-based metrics on external slides reflect unavailable type labels.
 
-`error_accounting.csv` separates predictive-loss changes over cells selected by both policies, neither policy, or only one. Contributions sum to the full-pool loss improvement and may be negative. `error_exchanges.csv` reconstructs utility changes from the cells added and removed. These descriptive analyses use the purity-selected BCE and joint policies at the 10% budget. `figures/decision_examples.png` shows the paired external score and stopping comparisons.
-
-Marker values are relative abundance estimates in arbitrary units. Compare methods within a pool; the external threshold prevalence and purity ceiling differ substantially from the main pool. Intervals condition on the fitted models, choices and fixed cutoff, and are not adjusted for multiple comparisons. Interpretation is in [the results discussion](../docs/results.md).
+PNG and PDF figures are in `figures/`. Full reruns write checkpoints, predictions, protocols, and verification records to the generated result directories listed in the [reproduction guide](../docs/reproduce.md).

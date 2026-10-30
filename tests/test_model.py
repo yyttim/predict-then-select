@@ -1,100 +1,134 @@
-"""Full reference architecture, paired initialization, and independent task gradients."""
+"""Checks for preservation of the reference encoder and task separation."""
 
 import importlib.util
 from pathlib import Path
 
 import pytest
 import torch
+from torch.nn import functional as F
 
-from cellselect.losses import objective_loss
 from cellselect.model import build_model, parameter_counts
 
 
 @pytest.fixture(autouse=True)
-def two_threads():
+def bounded_cpu_threads():
     previous = torch.get_num_threads()
     torch.set_num_threads(2)
     yield
     torch.set_num_threads(previous)
 
 
-def test_matches_reference_encoder_and_scalar_heads_without_gating():
-    path = Path(__file__).resolve().parents[1] / "vendor/reference_model.py"
-    spec = importlib.util.spec_from_file_location("reference", path)
+def _reference_model():
+    path = Path(__file__).resolve().parents[1] / "vendor" / "reference_model.py"
+    spec = importlib.util.spec_from_file_location("cellselect_reference", path)
     reference = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(reference)
-    original = reference.create_model(num_classes=1, num_proteins=1, use_task_gating=False).eval()
-    model = build_model(seed=3).eval()
+    return reference.create_model(num_classes=3, num_proteins=1, use_task_gating=False)
+
+
+def test_matches_ungated_released_model_after_copying_weights():
+    """Encoder outputs agree with the upstream implementation."""
+    reference = _reference_model().eval()
+    model = build_model(seed=7).eval()
     for name in ("shared_channel_attention", "cnn", "vit", "fusion"):
-        getattr(model.encoder, name).load_state_dict(getattr(original, name).state_dict())
-    model.mean_head.refinement.load_state_dict(original.reg_refinement.state_dict())
-    model.mean_head.predictor.load_state_dict(original.regressor.regressor.state_dict())
-    model.hit_head.refinement.load_state_dict(original.cls_refinement.state_dict())
-    model.hit_head.predictor.load_state_dict(original.classifier.classifier.state_dict())
+        getattr(model.encoder, name).load_state_dict(getattr(reference, name).state_dict())
+    model.classification_head.refinement.load_state_dict(reference.cls_refinement.state_dict())
+    model.regression_head.refinement.load_state_dict(reference.reg_refinement.state_dict())
+    model.classification_head.predictor.load_state_dict(
+        reference.classifier.classifier.state_dict()
+    )
+    model.regression_head.predictor.load_state_dict(reference.regressor.regressor.state_dict())
     x = torch.randn(3, 4, 28, 28)
     with torch.no_grad():
-        logits, marker = original(x)
-        actual = model(x)
-    torch.testing.assert_close(actual["mean_z"], marker[:, 0], rtol=2e-5, atol=2e-6)
-    torch.testing.assert_close(actual["hit_logit"], logits[:, 0], rtol=2e-5, atol=2e-6)
-    assert parameter_counts(model) == {"total": 1289583, "trainable": 1289583}
-
-
-@pytest.mark.parametrize("method", ["mse", "bce", "joint"])
-def test_active_gradients_reach_both_encoder_branches_and_leave_inactive_head_unchanged(method):
-    model = build_model(seed=7).train()
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.2)
-    before = {key: value.clone() for key, value in model.state_dict().items()}
-    output = model(torch.randn(3, 4, 28, 28))
-    loss, _, _ = objective_loss(
-        output, torch.tensor([-0.5, 0.0, 1.0]), torch.tensor([0.0, 0.0, 1.0]), method, 0.3
+        expected_cls, expected_marker, expected_features = reference(x, return_features=True)
+        actual = model(x, return_features=True)
+    torch.testing.assert_close(actual["logits"], expected_cls, rtol=2e-5, atol=2e-6)
+    torch.testing.assert_close(actual["marker"], expected_marker[:, 0], rtol=2e-5, atol=2e-6)
+    torch.testing.assert_close(
+        actual["features"], expected_features["shared_features"], rtol=2e-5, atol=2e-6
     )
+    assert parameter_counts(model) == parameter_counts(reference)
+
+
+@pytest.mark.parametrize("task", ["classification", "regression"])
+def test_losses_reach_both_encoder_branches_but_not_other_head(task):
+    model = build_model(seed=11).train()
+    outputs = model(torch.randn(3, 4, 28, 28))
+    if task == "classification":
+        loss = F.cross_entropy(outputs["logits"], torch.tensor([0, 1, 2]))
+        active = model.classification_head
+        inactive = model.regression_head
+    else:
+        loss = F.mse_loss(outputs["marker"], torch.tensor([-1.0, 0.2, 0.9]))
+        active = model.regression_head
+        inactive = model.classification_head
     loss.backward()
-    for block in [model.encoder.cnn, model.encoder.vit, model.encoder.fusion]:
-        assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in block.parameters())
-    inactive = "hit_head" if method == "mse" else "mean_head" if method == "bce" else None
-    for name in ["mean_head", "hit_head"]:
-        grads = [p.grad for p in getattr(model, name).parameters()]
-        assert (
-            all(g is None for g in grads)
-            if name == inactive
-            else all(g is not None and torch.isfinite(g).all() for g in grads)
-        )
-    optimizer.step()
-    if inactive:
-        for key, value in model.state_dict().items():
-            if key.startswith(inactive + "."):
-                assert torch.equal(value, before[key])
+    assert all(parameter.grad is None for parameter in inactive.parameters())
+    for module in (
+        model.encoder.shared_channel_attention,
+        model.encoder.cnn,
+        model.encoder.vit,
+        model.encoder.fusion,
+        active,
+    ):
+        grads = [parameter.grad for parameter in module.parameters()]
+        assert all(grad is not None and torch.isfinite(grad).all() for grad in grads)
+        assert any(grad.abs().sum() > 0 for grad in grads)
 
 
-@pytest.mark.parametrize("batch", [1, 4])
-def test_shapes_eval_determinism_and_seeded_initialization(batch):
+def test_seeded_initialization_matches_and_preserves_cpu_rng_state():
     before = torch.random.get_rng_state().clone()
-    first, second = build_model(seed=11).eval(), build_model(seed=11).eval()
+    first = build_model(seed=19)
     assert torch.equal(before, torch.random.get_rng_state())
-    assert all(
-        torch.equal(value, second.state_dict()[key]) for key, value in first.state_dict().items()
-    )
-    x = torch.randn(batch, 4, 28, 28)
+    second = build_model(seed=19)
+    for key, value in first.state_dict().items():
+        torch.testing.assert_close(value, second.state_dict()[key], rtol=0, atol=0)
+    different = build_model(seed=20)
+    assert not torch.equal(first.encoder.cnn.stem[0].weight, different.encoder.cnn.stem[0].weight)
+
+
+@pytest.mark.parametrize("batch_size", [1, 3])
+def test_output_contract_and_eval_determinism(batch_size):
+    model = build_model(seed=21).eval()
+    x = torch.randn(batch_size, 4, 28, 28)
     with torch.no_grad():
-        a, b = first(x), first(x)
-    assert set(a) == {"mean_z", "hit_logit"}
-    for key in a:
-        assert a[key].shape == (batch,) and torch.equal(a[key], b[key])
+        outputs = model(x)
+        repeated = model(x)
+    assert set(outputs) == {"logits", "marker"}
+    assert outputs["logits"].shape == (batch_size, 3)
+    assert outputs["marker"].shape == (batch_size,)
+    for key in outputs:
+        assert torch.isfinite(outputs[key]).all()
+        torch.testing.assert_close(outputs[key], repeated[key], rtol=0, atol=0)
+
+
+def test_width_check_changes_fusion_and_heads_not_backbones():
+    reference_width = build_model(seed=2)
+    narrower = build_model(feature_dim=128, seed=2).eval()
+    assert parameter_counts(reference_width.encoder.cnn) == parameter_counts(narrower.encoder.cnn)
+    assert parameter_counts(reference_width.encoder.vit) == parameter_counts(narrower.encoder.vit)
+    with torch.no_grad():
+        assert narrower(torch.randn(1, 4, 28, 28), return_features=True)["features"].shape == (
+            1,
+            128,
+        )
 
 
 @pytest.mark.parametrize("shape", [(2, 3, 28, 28), (2, 4, 32, 32), (4, 28, 28), (0, 4, 28, 28)])
-def test_invalid_image_shape_rejected(shape):
+def test_rejects_wrong_input_shape(shape):
+    model = build_model(seed=4)
     with pytest.raises(ValueError):
-        build_model(seed=4)(torch.randn(*shape))
+        model(torch.randn(*shape))
 
 
-def test_loss_rejects_target_broadcasting_and_keeps_unweighted_bce():
-    outputs = {"mean_z": torch.tensor([0.0, 2.0]), "hit_logit": torch.tensor([0.0, 0.0])}
-    total, mse, bce = objective_loss(
-        outputs, torch.tensor([0.0, 0.0]), torch.tensor([0.0, 1.0]), "joint", 0.3
-    )
-    assert mse.item() == 2.0 and bce.item() == pytest.approx(0.69314718)
-    assert total.item() == pytest.approx(2.0 + 0.3 * 0.69314718)
-    with pytest.raises(ValueError, match="aligned"):
-        objective_loss(outputs, torch.zeros(2, 1), torch.zeros(2), "mse")
+def test_rejects_unprocessed_integer_input():
+    with pytest.raises(TypeError):
+        build_model(seed=4)(torch.zeros(2, 4, 28, 28, dtype=torch.uint8))
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"feature_dim": 0}, {"num_classes": 1}, {"img_size": 27}, {"dropout_rate": 1}]
+)
+def test_rejects_invalid_model_configuration(kwargs):
+    with pytest.raises(ValueError):
+        build_model(**kwargs)

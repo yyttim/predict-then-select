@@ -1,66 +1,97 @@
 {
-  "version": 2,
-  "study": "marker-objectives",
-  "inference_commit": "78571c5c622f1c1ce664bbac6a59565a6c52689a",
-  "folder": "https://drive.google.com/drive/folders/1A3sDK0kEPocnoLUpg5mFG3833X6mmXEZ",
-  "data_manifest_sha256": "978e968d5a030ad17c6c52c6f703798aec2666f9d96d4df51a9d3a2632fa624d",
+  "version": 1,
+  "folder": "https://drive.google.com/drive/folders/1E0WlKM2xjE1Sibodr_qwCAW4Hl-ZGwfm",
+  "code_commit": "ad6422d16c01e1cb5a478466092f54161422cde1",
+  "data": {
+    "dataset": "BSCCMNIST",
+    "main_cells": 9437,
+    "external_cells": 27074,
+    "input_shape": [
+      4,
+      28,
+      28
+    ],
+    "source": "https://doi.org/10.5061/dryad.sxksn038s"
+  },
   "files": {
-    "data": {
-      "filename": "prepared-data.tar.xz",
-      "id": "1NfFsoUeoDD6F-dpK-uySMBHXYRkaF3S-",
-      "sha256": "713c8a075443d5e63a01f554d923e6f0bdfe9ea91f62c89c095f7d7afb9cb1c5",
-      "bytes": 68139900,
-      "url": "https://drive.google.com/file/d/1NfFsoUeoDD6F-dpK-uySMBHXYRkaF3S-/view?usp=drivesdk"
+    "main_data": {
+      "filename": "main-data.zip",
+      "bytes": 30101676,
+      "sha256": "6a22ec38b5039874965b42678c4d6a37792257e5fd2c2f462cdb96e260c60a67",
+      "id": "1dH0RB-eDWQFSCgOa3S8R4WzG_1tTpXL4",
+      "url": "https://drive.google.com/file/d/1dH0RB-eDWQFSCgOa3S8R4WzG_1tTpXL4/view?usp=drivesdk",
+      "path": "data/main-data.zip"
     },
-    "seed16": {
-      "filename": "seed16.zip",
-      "id": "1Z2pqshPMeXlH9G8hxCO0CEb1OPt9v3lG",
-      "sha256": "65f64d2748aa4469d3427f6a46eeb9aa0b432b7fc4a811b25d524be53c065059",
-      "bytes": 57305187,
-      "url": "https://drive.google.com/file/d/1Z2pqshPMeXlH9G8hxCO0CEb1OPt9v3lG/view?usp=drivesdk"
+    "external_data": {
+      "filename": "external-data.zip",
+      "bytes": 86993035,
+      "sha256": "6aeb53fb381d4eefaac2806c5c0bf60a7f73d62445a3da3e58da68e22b35983a",
+      "id": "19LHIygsEloioxzvESuipC2hqUWRASam8",
+      "url": "https://drive.google.com/file/d/19LHIygsEloioxzvESuipC2hqUWRASam8/view?usp=drivesdk",
+      "path": "data/external-data.zip"
     },
-    "seed26": {
-      "filename": "seed26.zip",
-      "id": "1KSMtZB6r7EGsCOl5X6Hj3drlhibENgi0",
-      "sha256": "f2ebd07690ce793a42a8e3c0d54066247676f0002aaa2cf1ace9d28aa4c1945a",
-      "bytes": 57307757,
-      "url": "https://drive.google.com/file/d/1KSMtZB6r7EGsCOl5X6Hj3drlhibENgi0/view?usp=drivesdk"
+    "cd16_full": {
+      "filename": "cd16-full.zip",
+      "bytes": 86156293,
+      "sha256": "5558c61f2196aaf6d4b9b8258b21b8c47daa907f84819b1e168bd8519cd72b41",
+      "id": "1syMMVg-7C_ywbbA5DOA-Jl8k-nx7YpEz",
+      "url": "https://drive.google.com/file/d/1syMMVg-7C_ywbbA5DOA-Jl8k-nx7YpEz/view?usp=drivesdk",
+      "path": "models/cd16-full.zip"
     },
-    "seed36": {
-      "filename": "seed36.zip",
-      "id": "1-O5ZLtcVI9E2qKuMiMhUOjkKwy9VOkS-",
-      "sha256": "1330d40695379c0f3ea468597883c3246c1cb66ab2f3ebae034568fd9a6fb157",
-      "bytes": 57302131,
-      "url": "https://drive.google.com/file/d/1-O5ZLtcVI9E2qKuMiMhUOjkKwy9VOkS-/view?usp=drivesdk"
+    "cd16_half": {
+      "filename": "cd16-half.zip",
+      "bytes": 86126313,
+      "sha256": "f347e66334779eeabe114003cc2106aa224a0bb3609c6c03333dff8aefa57a50",
+      "id": "17_OZfPeQauzT-7cGrr5htcx-3agxFC6z",
+      "url": "https://drive.google.com/file/d/17_OZfPeQauzT-7cGrr5htcx-3agxFC6z/view?usp=drivesdk",
+      "path": "models/cd16-half.zip"
     },
-    "reference": {
-      "filename": "reference-results.zip",
-      "id": "130_1DAII0U6Mi_R0u-Tl-UL-YjHO3QO9",
-      "sha256": "659779f315b5e5b042b30034e6053b7b654bc84f2c105327e51650935b783df6",
-      "bytes": 13226811,
-      "url": "https://drive.google.com/file/d/130_1DAII0U6Mi_R0u-Tl-UL-YjHO3QO9/view?usp=drivesdk"
+    "cd16_quarter": {
+      "filename": "cd16-quarter.zip",
+      "bytes": 86101834,
+      "sha256": "5e1196a28088f358619b5dc7c77a84974b272a2cda4af90cf3460a7ffb8d9f6c",
+      "id": "1ZDi3oMxxXzCk_pw85RtaT8DgMEk8G5YP",
+      "url": "https://drive.google.com/file/d/1ZDi3oMxxXzCk_pw85RtaT8DgMEk8G5YP/view?usp=drivesdk",
+      "path": "models/cd16-quarter.zip"
+    },
+    "cd45_full": {
+      "filename": "cd45-full.zip",
+      "bytes": 86151920,
+      "sha256": "7cf978e50405abdc62a70c7581979439309e937b231e216455abb061cb441189",
+      "id": "1sASoRNNAI1-aZzYPSzmSVb1ex4US2BnG",
+      "url": "https://drive.google.com/file/d/1sASoRNNAI1-aZzYPSzmSVb1ex4US2BnG/view?usp=drivesdk",
+      "path": "models/cd45-full.zip"
+    },
+    "readouts": {
+      "filename": "readouts.zip",
+      "bytes": 48937504,
+      "sha256": "34bbdc95c9a05625be9e86673b0a3c44076fbadb14e0dc83c8f6e60b9ece9b61",
+      "id": "19sRHQQwyCXx_qAmaB9YJBKa9cY8d8PTh",
+      "url": "https://drive.google.com/file/d/19sRHQQwyCXx_qAmaB9YJBKa9cY8d8PTh/view?usp=drivesdk",
+      "path": "models/readouts.zip"
+    },
+    "results": {
+      "filename": "evaluation-results.zip",
+      "bytes": 20748273,
+      "sha256": "13fe1cc3b2469b379fc6ee90e30efa17a80e5ee87c41e3a692f8267ec5f6b92c",
+      "id": "1GftHW2W_sAFEWbVBoSQm_h7ZETJl4Ve6",
+      "url": "https://drive.google.com/file/d/1GftHW2W_sAFEWbVBoSQm_h7ZETJl4Ve6/view?usp=drivesdk",
+      "path": "evaluation-results.zip"
     }
   },
   "notebook": {
-    "filename": "marker_objectives.ipynb",
-    "repository_path": "notebooks/pretrained_models.ipynb",
-    "bytes": 17018,
-    "sha256": "31a84782d9a272cac0b7c76f759d16c3cb336ffe5a14d57128e57d3247fc4838",
-    "id": "1T8haOk2WQxb-4HvJY0jJgpssHvKUzmG_",
-    "url": "https://drive.google.com/file/d/1T8haOk2WQxb-4HvJY0jJgpssHvKUzmG_/view?usp=drivesdk"
-  },
-  "readme": {
-    "filename": "README.txt",
-    "bytes": 1026,
-    "sha256": "42478d16c069d69fadfb8f7a03cd24a9aa3902cafab66dc146cf2b9b817d48d4",
-    "id": "1NpJrzQTVCd7J35FBEUik79YXNfNSIIEw",
-    "url": "https://drive.google.com/file/d/1NpJrzQTVCd7J35FBEUik79YXNfNSIIEw/view?usp=drivesdk"
+    "filename": "predict_then_select.ipynb",
+    "bytes": 16304,
+    "sha256": "5a2a3233bb8247deae969291ea3e826ac31f0672002510a9b9951d0819686f0d",
+    "id": "1xwEXAmoQ2PuRQkmvK0wOl_ncYouC3Oj_",
+    "url": "https://drive.google.com/file/d/1xwEXAmoQ2PuRQkmvK0wOl_ncYouC3Oj_/view?usp=drivesdk",
+    "repository_path": "notebooks/pretrained_models.ipynb"
   },
   "checksums": {
     "filename": "SHA256SUMS.txt",
-    "bytes": 573,
-    "sha256": "b41e93ff31804c625586c99f44b789bf5575e955a236e938cb73c440157589c6",
-    "id": "13suCGpjPrHAiNUFlgWOfQRAHtLxNN_3Q",
-    "url": "https://drive.google.com/file/d/13suCGpjPrHAiNUFlgWOfQRAHtLxNN_3Q/view?usp=drivesdk"
+    "bytes": 869,
+    "sha256": "e9b6de528db661aa2eb90a4a244ab3511b6efb4888d2c6b56d4e8becea9c1443",
+    "id": "13bM1A5MYTkg3f-dW4z-fFo0AadkzNlZ5",
+    "url": "https://drive.google.com/file/d/13bM1A5MYTkg3f-dW4z-fFo0AadkzNlZ5/view?usp=drivesdk"
   }
 }
