@@ -14,4 +14,6 @@ The primary comparison selects models by validation utility at a 10% selection b
 
 `head_diagnostics.csv` reports RMSE for trained mean heads and Brier/log loss for trained probability heads. These are checkpoint-level diagnostics even when the other joint head supplies the ranking score. The stopping reports also contain `stopping_differences.csv` and `stopping_exchanges.csv`, comparing predictive-loss selection with the original utility-based choices.
 
+`error_accounting.csv` separates predictive-loss changes over cells selected by both policies, neither policy, or only one. Contributions sum to the full-pool loss improvement and may be negative. `error_exchanges.csv` reconstructs utility changes from the cells added and removed. These descriptive analyses use the purity-selected BCE and joint policies at the 10% budget. `figures/decision_examples.png` shows the paired external score and stopping comparisons.
+
 Marker values are relative abundance estimates in arbitrary units. Compare methods within a pool; the external threshold prevalence and purity ceiling differ substantially from the main pool. Intervals condition on the fitted models, choices and fixed cutoff, and are not adjusted for multiple comparisons. Interpretation is in [the results discussion](../docs/results.md).

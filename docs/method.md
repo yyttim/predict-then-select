@@ -1,6 +1,6 @@
 # Method
 
-We study which predictive objective supports cell selection when the desired outcome is either high average marker abundance or a high fraction of cells above a marker threshold. Both tasks use the same label-free images and paired CD16 measurements. The comparison asks whether continuous regression, threshold classification, or their combination uses limited training labels most effectively.
+We study which predictive objective supports cell selection when the desired outcome is either high average marker abundance or a high fraction of cells above a marker threshold. Both tasks use the same label-free images and paired CD16 measurements. The comparison asks whether continuous regression, threshold classification, or their combination uses limited training labels most effectively. The distinction between predictive error and decision quality follows [Elmachtoub and Grigas](https://doi.org/10.1287/mnsc.2020.3922).
 
 ## Two selection objectives
 

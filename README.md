@@ -14,7 +14,7 @@ The study uses all **37,254** eligible single-antibody CD16 cells in BSCCMNIST. 
 
 - Regression is a strong baseline. It selects higher mean-marker cells than threshold classification, which does not establish a purity advantage in the primary comparisons.
 - A score can favor one use at the expense of another. With full-data joint weights held fixed, probability scoring instead of mean scoring adds 0.167 percentage points of external purity while lowering mean CD16 by 5.45 units.
-- Better probability loss need not improve selection. In the exploratory stopping-rule check, quarter-data BCE lowers external log loss from 0.437 to 0.166, while purity falls from 6.509% to 6.150%.
+- Better probability loss need not improve marker-high purity. In the exploratory stopping-rule check, quarter-data BCE lowers external log loss from 0.437 to 0.166, while purity falls from 6.509% to 6.150%.
 
 ![Main test results](results/figures/objectives.png)
 

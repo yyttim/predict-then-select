@@ -14,7 +14,7 @@ This table uses full-data models **selected for purity** on the main test pool. 
 | BCE classification | 428.24 ± 6.42 | 46.96 ± 1.84 |
 | Joint training | 432.01 ± 8.45 | 49.39 ± 1.11 |
 
-The full-data BCE-minus-MSE purity difference is −3.65 percentage points, with a conditional 95% field-bootstrap interval of [−7.01, 0.23]. The joint-minus-BCE difference is +2.43 points [−1.22, 5.51]. None of the primary between-method purity intervals excludes zero at either training budget in either pool. These comparisons establish neither a gain from threshold classification nor equivalence between methods. [Main results](../results/tables/summary.csv), [paired comparisons](../results/tables/paired_comparisons.csv).
+The full-data BCE-minus-MSE purity difference is −3.65 percentage points, with a conditional 95% field-bootstrap interval of [−7.01, 0.23]. The joint-minus-BCE difference is +2.43 points [−1.22, 5.51]. Among models selected for purity at $q=0.10$, none of the primary between-method purity intervals excludes zero at either training budget in either pool. These comparisons establish neither a gain from threshold classification nor equivalence between methods. [Main results](../results/tables/summary.csv), [paired comparisons](../results/tables/paired_comparisons.csv).
 
 For models selected for mean abundance, MSE exceeds BCE by 18.69 units with all training fields and 19.61 units with one quarter of them. The corresponding external advantages are 3.93 and 8.00 units. All four conditional intervals exclude zero. Joint training does not establish a consistent improvement over MSE. [External comparisons](../results/external/tables/paired_comparisons.csv).
 
@@ -22,7 +22,7 @@ For models selected for mean abundance, MSE exceeds BCE by 18.69 units with all 
 
 The full-data joint checkpoint selected for purity provides a modest external trade-off. Using its probability score instead of its mean score increases purity by **0.167 percentage points** [0.024, 0.297], while reducing mean selected CD16 by **5.45 units** [4.32, 6.57]. The probability score selects 6, 2, and 6 additional marker-high cells in the three runs; mean abundance decreases in all three. The weights are identical within each comparison. This is evidence about the choice of score at that checkpoint, not an advantage of joint training over regression. The corresponding main-pool head comparisons remain inconclusive. [Paired head comparisons](../results/external/tables/paired_comparisons.csv).
 
-Absolute purity cannot be compared directly across these pools. Only 230 external cells exceed the frozen threshold, a prevalence of 0.826%. Selecting 10% of that pool therefore has a hindsight purity ceiling of 8.256%, even with perfect knowledge of every outcome. Acquisition and measurement-scale changes can affect this threshold-defined task. [Candidate-pool statistics](../results/external/tables/candidate_pool.csv).
+Different prevalences limit direct comparisons across these pools. Only 230 external cells exceed the frozen threshold, a prevalence of 0.826%. Selecting 10% of that pool therefore has a hindsight purity ceiling of 8.256%, even with perfect knowledge of every outcome. Acquisition and measurement-scale changes can affect this threshold-defined task. [Candidate-pool statistics](../results/external/tables/candidate_pool.csv).
 
 ## Stopping by predictive loss
 
@@ -35,8 +35,20 @@ For quarter-data BCE, this changes the selected checkpoint from step 5,200 to st
 | Main test | 0.782 → 0.278 | 42.09 → 41.12 |
 | External | 0.437 → 0.166 | 6.509 → 6.150 |
 
-Better probability loss does not produce better selection here. The main-pool purity change is −0.97 points [−4.94, 2.84]; externally it is −0.359 points [−0.651, −0.072]. [Main stopping differences](../results/stopping/tables/stopping_differences.csv), [external stopping differences](../results/stopping/external/tables/stopping_differences.csv).
+Better probability loss does not guarantee better marker-high purity. The main-pool purity change is −0.97 points [−4.94, 2.84]; externally it is −0.359 points [−0.651, −0.072]. [Main stopping differences](../results/stopping/tables/stopping_differences.csv), [external stopping differences](../results/stopping/external/tables/stopping_differences.csv).
 
 Under this alternative rule, joint-minus-BCE purity differences on the main pool are +4.62 points [0.48, 8.27] at the quarter budget and +4.14 points [0.24, 6.91] at the full budget. This pattern does not extend to the external pool. These exploratory comparisons do not replace the inconclusive primary joint-versus-BCE result. [Main](../results/stopping/tables/paired_comparisons.csv) and [external](../results/stopping/external/tables/paired_comparisons.csv) sensitivity tables.
+
+![Paired external score and stopping comparisons](../results/figures/decision_examples.png)
+
+Each segment joins a paired training seed. Panel A holds the full-data joint weights fixed; panel B compares stopping criteria for quarter-data BCE. Both select 2,786 cells from the complete external pool.
+
+## Loss changes and selected cells
+
+For equal-sized selections, cells retained by both policies cancel in the utility difference. Only the cells exchanged between the two sets contribute. Prediction loss also includes cells whose membership does not change.
+
+In the quarter-data BCE stopping comparison, unchanged cells comprise 93–94% of each pool and account for about 84% of the net log-loss improvement. The contributions are averaged across seeds before taking the ratio. Most of the main-pool improvement comes from cells selected by neither policy. Externally, it comes mainly from cells selected by both; loss on cells selected by neither actually increases. [Main loss accounting](../results/stopping/tables/error_accounting.csv), [external loss accounting](../results/stopping/external/tables/error_accounting.csv).
+
+Log loss also improves on average among the exchanged cells. Yet the external policies replace 857–934 cells per run and lose 0, 11, and 19 marker-high cells, respectively. Those exchanges account exactly for the purity changes. Improving predicted probabilities need not improve which cells cross the selection boundary. [Cell exchanges](../results/stopping/external/tables/error_exchanges.csv).
 
 All intervals condition on the fitted models, selected settings, cutoff, and observed fields; they are not adjusted for multiple comparisons. Three training seeds and two physical slides do not establish donor-level generalization or a mechanism involving conditional marker variance.

@@ -66,6 +66,10 @@ python scripts/summarize_study.py --study results/study/stopping --output result
 python scripts/summarize_study.py --study results/study/stopping --pool external --output results/stopping/external
 python scripts/compare_stopping.py --study results/study
 python scripts/compare_stopping.py --study results/study --pool external
+python scripts/error_accounting.py --study results/study
+python scripts/plot_decision_examples.py
 ```
+
+The last two commands attribute loss and utility changes to retained and exchanged cells, then plot the paired external examples. They use saved predictions and tables without fitting new models.
 
 `scripts/verify_results.py --study results/study --pool test` independently reconstructs each reported outcome from saved predictions and checks its model/data bindings. The same command accepts `--pool external` or the stopping-study directory.
